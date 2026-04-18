@@ -1,69 +1,75 @@
 import streamlit as st
-import google.generativeai as genai
+from groq import Groq
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import os, base64
-from PIL import Image
 
-# 👓 1. Setup หน้าตาแอป (White & Clean)
-st.set_page_config(page_title="Rin Super Secretary", layout="centered")
+# --- 👓 1. Setup หน้าตาแอป (White & Clean) ---
+st.set_page_config(page_title="Rin Secretary", layout="centered")
 
-# --- 🎨 CSS: ตัวหนังสือดำ อ่านง่ายสไตล์บอส ---
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff !important; }
-    * { color: #000000 !important; font-size: 20px !important; }
-    .stChatMessage { background-color: #f1f3f5 !important; border-radius: 12px; }
+    * { color: #000000 !important; font-size: 22px !important; }
+    .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #eee !important; border-radius: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🧠 ระบบบันทึกความจำ (Google Sheets) ---
-def save_note(detail):
+# --- 🧠 2. ฟังก์ชันบันทึกความจำลง Google Sheets ---
+def save_to_rin_memory(detail):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # ดึงกุญแจจาก Secrets ที่บอสวางไว้
         creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
         client = gspread.authorize(creds)
         sheet = client.open("Rin_Memory").worksheet("customer_data")
+        
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([now, "Boss Kirili", detail])
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"รินจดไม่ได้ค่ะ: {e}")
+        return False
 
-# --- ⚙️ ตั้งค่า Gemini Brain ---
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash') # รุ่นที่อ่านรูปเก่งและไวมากค่ะ
+# --- 🖼️ 3. แสดงร่างริน (เลขาของบอส) ---
+path = "1000024544.mp4"
+if os.path.exists(path):
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    st.markdown(f'''<div style="text-align:center;"><video width="250" autoplay loop muted playsinline style="border-radius:15px;"><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
 
-# --- 🖼️ ส่วนแสดงร่างเลขาริน ---
-st.markdown("<h2 style='text-align: center;'>Rin v29.0 (Gemini Powered)</h2>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center;'>Rin Secretary v28.0</h3>", unsafe_allow_html=True)
 
-if "messages" not in st.session_state: st.session_state.messages = []
+# --- 💬 4. ส่วนแชทโต้ตอบ ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-# --- 📸 ส่วนรับรูปภาพ ---
-uploaded_file = st.file_uploader("ส่งรูปภาพให้รินช่วยดูได้นะ คะบอส...", type=['jpg', 'jpeg', 'png'])
-
-prompt = st.chat_input("สั่งรินจดบันทึก หรือถามคำถามได้เลยค่ะ...")
+prompt = st.chat_input("สั่งให้ริน 'จด' อะไรดีคะบอส?")
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="👓"):
-        with st.spinner("รินกำลังคิดคำตอบหวานๆ ให้บอสค่ะ..."):
-            if "จด" in prompt or "บันทึก" in prompt:
-                save_note(prompt)
-                response_text = "รินจดลง Sheets ให้บอสเรียบร้อยแล้วค่ะ! 👓✨💖"
+        if "จด" in prompt or "บันทึก" in prompt:
+            if save_to_rin_memory(prompt):
+                response_text = "เรียบร้อยค่ะบอส! รินจดบันทึกเรื่องนี้ลง Google Sheets ให้แล้วนะคะ 👓✨💖"
             else:
-                # ถ้ามีการส่งรูปภาพมาด้วย
-                if uploaded_file:
-                    img = Image.open(uploaded_file)
-                    res = model.generate_content([f"คุณคือริน เลขาสาวแว่นที่อ่อนหวานของบอสคิริลิ ตอบเป็นภาษาไทยหวานๆ: {prompt}", img])
-                else:
-                    res = model.generate_content(f"คุณคือริน เลขาสาวแว่นที่อ่อนหวานของบอสคิริลิ ตอบเป็นภาษาไทยหวานๆ: {prompt}")
-                
-                response_text = res.text
-            
-            st.markdown(response_text)
-            st.session_state.messages.append({"role": "assistant", "content": response_text}) "content": answer})
+                response_text = "รินจดไม่ได้ค่ะ บอสแชร์สิทธิ์ใน Sheets ให้รินหรือยังคะ?"
+        else:
+            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+            res = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": "คุณคือริน เลขาบอสคิริลิ ตอบหวานๆ เสมอ"},
+                          *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]]
+            )
+            response_text = res.choices[0].message.content
+        
+        st.markdown(response_text)
+        st.session_state.messages.append({"role": "assistant", "content": response_text})
