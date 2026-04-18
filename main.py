@@ -9,28 +9,53 @@ import asyncio
 import edge_tts
 from datetime import datetime
 
-# 👓 1. ตั้งค่าหน้าตาแอป (UI Gemini Dark Mode)
-st.set_page_config(page_title="Rin :: Private Secretary Live", layout="centered")
+# 👓 1. ตั้งค่าหน้าตาแแอป
+st.set_page_config(page_title="Rin :: Secretary Pro Max", layout="centered")
 
+# --- 🎨 ปรับปรุงสีและขนาดตัวอักษรตามสั่ง (Chat High Contrast) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #131314; color: #e3e3e3; }
-    .stChatMessage { border-radius: 20px; }
-    .stTextInput input { border-radius: 30px !important; background-color: #1e1f20 !important; color: white !important; border: 1px solid #444746 !important; }
+    /* พื้นหลังแอปสีมืด */
+    .stApp { background-color: #0c0c0c; color: #ffffff; }
+    
+    /* กล่องแชท: พื้นหลังดำสนิท ตัวอักษรสีขาว และใหญ่ขึ้น */
+    .stChatMessage { 
+        background-color: #000000 !important; 
+        color: #ffffff !important; 
+        border: 1px solid #333 !important;
+        border-radius: 15px;
+        margin-bottom: 15px;
+    }
+    .stChatMessage p, .stChatMessage span {
+        font-size: 20px !important;  /* ขยายขนาดตัวอักษร */
+        line-height: 1.5;
+        color: #ffffff !important;
+    }
+    
+    /* ปรับแต่งช่องกรอกข้อมูล */
+    .stTextInput input { 
+        border-radius: 30px !important; 
+        background-color: #1e1f20 !important; 
+        color: white !important; 
+        font-size: 18px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🎭 ฟังก์ชันสลับร่างวิดีโอ (Live 2D Logic) ---
-def render_rin_live(mood="normal"):
+# --- 🎭 ฟังก์ชันแสดงวิดีโอ (รองรับทั้ง Normal และ Live) ---
+def render_rin_display(mood="normal", is_live=True):
+    # ถ้าไม่ใช่โหมด Live จะล็อคไว้ที่ท่าปกติ (normal) ค่ะ
+    target = mood if is_live else "normal"
+    
     file_map = {
-        "normal": "normal", 
+        "normal": "normal", # หรือ "1000024544"
         "wave": "wave", 
         "shy": "shy"
     }
-    target = file_map.get(mood, "normal")
+    filename = file_map.get(target, "normal")
     
     for ext in [".mp4", ".MP4", ".mov"]:
-        full_path = target + ext
+        full_path = filename + ext
         if os.path.exists(full_path):
             with open(full_path, "rb") as f:
                 data = f.read()
@@ -41,12 +66,11 @@ def render_rin_live(mood="normal"):
                         <source src="data:video/mp4;base64,{b64}" type="video/mp4">
                     </video>
                 </div>'''
-    return "<p style='text-align:center; color:gray;'>บอสคะ รินหาไฟล์วิดีโอไม่เจอใน GitHub ค่ะ!</p>"
+    return "<p style='text-align:center; color:gray;'>ไม่พบไฟล์วิดีโอในระบบค่ะบอส</p>"
 
-# --- 🔊 ฟังก์ชันเสียงหวานเลขาพรีเมียม ---
+# --- 🔊 เสียงหวานพรีเมียม ---
 async def generate_voice(text):
     VOICE = "th-TH-PremwadeeNeural"
-    # จูนเสียงหวานนุ่มนวลแบบที่บอสชอบค่ะ
     communicate = edge_tts.Communicate(text, VOICE, rate="-18%", pitch="+4Hz")
     await communicate.save("rin_voice.mp3")
 
@@ -63,45 +87,50 @@ def search_the_world(query, is_max):
         tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
         depth = "advanced" if is_max else "basic"
         search_result = tavily.search(query=query, search_depth=depth, max_results=5)
-        context = ""
-        for res in search_result['results']:
-            context += f"\nข้อมูล: {res['content']}\n"
-        return context
+        return "".join([f"\n- {res['content']}\n" for res in search_result['results']])
     except: return "ขอโทษค่ะบอส รินเชื่อมต่อฐานข้อมูลไม่ได้ค่ะ"
 
-# --- 🧠 ระบบเลือกอารมณ์จากคำตอบ ---
+# --- 🧠 ระบบอารมณ์ ---
 def detect_mood(text):
     text = text.lower()
     if any(word in text for word in ["สวัสดี", "ทักทาย", "ยินดี", "โบกมือ", "รินจัง"]): return "wave"
     if any(word in text for word in ["รัก", "ชอบ", "หวาน", "เขิน", "จูบ", "คนสวย"]): return "shy"
     return "normal"
 
-# --- เริ่มระบบความจำ ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "current_mood" not in st.session_state:
-    st.session_state.current_mood = "normal"
+# --- State Management ---
+if "messages" not in st.session_state: st.session_state.messages = []
+if "current_mood" not in st.session_state: st.session_state.current_mood = "normal"
 
-# --- Sidebar: ตั้งค่าสมอง ---
+# --- 🛠️ Sidebar: ปุ่มแยกโหมด (ทำตามสั่งค่ะบอส!) ---
 with st.sidebar:
-    st.title("Rin Live Settings 🧠")
-    think_mode = st.radio("โหมดการคิด:", ("คิดปกติ (Standard)", "คิดขั้นสูงสุด (Max Reasoning ✨)"))
+    st.title("Rin Control Panel 💼")
+    
+    # ปุ่มแยกโหมดการทำงาน
+    app_mode = st.radio(
+        "เลือกระบบการทำงาน:",
+        ("💬 โหมดแชทปกติ", "✨ โหมด Live (ขยับตามอารมณ์)"),
+        help="โหมด Live จะสลับวิดีโอตามเนื้อหาที่คุยกันค่ะ"
+    )
+    
     st.write("---")
-    voice_on = st.toggle("เปิดเสียงหวาน (โหมดส่วนตัว)", value=True)
+    think_mode = st.radio("ระดับการคิด:", ("Standard", "Max Reasoning ✨"))
+    voice_on = st.toggle("เปิดเสียงเลขา", value=True)
+    
     if st.button("ล้างประวัติการคุย"):
         st.session_state.messages = []
         st.rerun()
 
-# --- แสดงผลหน้าหลัก ---
-st.markdown(render_rin_live(st.session_state.current_mood), unsafe_allow_html=True)
-st.markdown(f"<h3 style='text-align: center; color: #DDA0DD;'>Mode: {think_mode}</h3>", unsafe_allow_html=True)
+# --- แสดงผลหน้าจอหลัก ---
+is_live_enabled = "โหมด Live" in app_mode
+st.markdown(render_rin_display(st.session_state.current_mood, is_live_enabled), unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: #DDA0DD;'>{app_mode} | {think_mode}</p>", unsafe_allow_html=True)
 
-# --- ช่องรับคำสั่ง (ไมค์ + พิมพ์) ---
+# --- ส่วนรับคำสั่ง ---
 col_mic, col_input = st.columns([1, 5])
 with col_mic:
     audio_bytes = audio_recorder(text="", icon_size="2x", neutral_color="#444746")
 
-prompt = st.chat_input("สั่งงานเลขาริน หรือถามเรื่อง LUNC ได้เลยค่ะบอส...")
+prompt = st.chat_input("สั่งงานเลขารินได้เลยค่ะบอส...")
 
 final_prompt = None
 if audio_bytes:
@@ -121,12 +150,8 @@ if final_prompt:
         with st.status("เลขารินกำลังวิเคราะห์ข้อมูล...", expanded=True) as status:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             search_context = ""
-            
-            # เช็คว่าต้องหาข้อมูลไหม
-            if "Max Reasoning" in think_mode or any(word in final_prompt for word in ["เช็ค", "ราคา", "ข่าว"]):
-                st.write("🔍 กำลังเจาะระบบฐานข้อมูลทั่วโลกเพื่อบอส...")
+            if "Max" in think_mode or any(word in final_prompt for word in ["เช็ค", "ราคา", "ข่าว"]):
                 search_context = search_the_world(final_prompt, "Max" in think_mode)
-            
             status.update(label="ประมวลผลเสร็จแล้วค่ะบอส!", state="complete", expanded=False)
 
         response = client.chat.completions.create(
@@ -139,9 +164,9 @@ if final_prompt:
         answer = response.choices[0].message.content
         st.markdown(answer)
         
-        # 🧠 สลับท่าทางตามคำตอบ
+        # อัปเดตอารมณ์ (จะทำงานเฉพาะตอนเปิดโหมด Live ค่ะ)
         st.session_state.current_mood = detect_mood(answer)
         
         speak_now(answer, voice_on)
         st.session_state.messages.append({"role": "assistant", "content": answer})
-        st.rerun() # เพื่อให้วิดีโอเปลี่ยนทันทีค่ะ
+        st.rerun()
