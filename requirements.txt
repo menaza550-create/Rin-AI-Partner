@@ -2,5 +2,4 @@ streamlit
 groq
 edge-tts
 tavily-python
-google-generativeai
-pillow
+audio_recorder_streamlit
