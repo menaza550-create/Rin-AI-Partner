@@ -1,7 +1,8 @@
 streamlit
-groq
+google-generativeai
 tavily-python
 audio_recorder_streamlit
 gspread
 google-auth
 edge-tts
+Pillow
