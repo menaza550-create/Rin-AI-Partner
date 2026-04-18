@@ -2,3 +2,5 @@ streamlit
 groq
 edge-tts
 tavily-python
+google-generativeai
+pillow
