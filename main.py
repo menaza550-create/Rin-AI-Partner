@@ -16,7 +16,7 @@ st.markdown("""
     * { color: #000000 !important; font-size: 22px !important; }
     .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label { color: #000000 !important; font-weight: bold !important; }
-    #MainMenu, footer {visibility: hidden;}
+    header, #MainMenu, footer { visibility: visible !important; color: black !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,12 +33,13 @@ def save_to_rin_memory(detail):
     except Exception as e:
         return f"รินจดไม่ได้ค่ะ: {e}"
 
-# --- 🖼️ แสดงร่างริน ---
+# --- 🖼️ แสดงร่างริน (แก้ไขคำผิดที่นี่ค่ะ) ---
 def show_rin():
     path = "1000024544.mp4"
     if os.path.exists(path):
         with open(path, "rb") as f:
-            b64 = base64.base64encode(f.read()).decode()
+            # แก้ไขเป็น b64encode ตรงนี้ค่ะบอส
+            b64 = base64.b64encode(f.read()).decode()
         st.markdown(f'''<div style="display:flex;justify-content:center;margin-bottom:15px;"><video width="250" autoplay loop muted playsinline style="border-radius:15px;border:2px solid #DDA0DD;"><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
 
 # --- 🔊 ระบบเสียง ---
@@ -58,40 +59,28 @@ with st.sidebar:
         st.rerun()
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin Secretary v33.0</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin Secretary v33.1</h3>", unsafe_allow_html=True)
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-col_mic, col_in = st.columns([1, 5])
-with col_mic:
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#333333", recording_color="#ff4b4b")
-
 prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
-final_input = None
 
-if audio:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-    with open("t.wav", "wb") as f: f.write(audio)
-    with open("t.wav", "rb") as f:
-        final_input = client.audio.transcriptions.create(file=("t.wav", f.read()), model="whisper-large-v3").text
-elif prompt: final_input = prompt
-
-if final_input:
-    st.session_state.messages.append({"role": "user", "content": final_input})
-    with st.chat_message("user"): st.markdown(final_input)
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="👓"):
-        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
-            res = save_to_rin_memory(final_input)
+        if any(w in prompt for w in ["จด", "บันทึก", "จำ"]):
+            res = save_to_rin_memory(prompt)
             answer = "เรียบร้อยค่ะ! รินจดลง Sheets ให้บอสแล้วนะคะ 👓✨" if res is True else res
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
             context = ""
-            if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
+            if "Max" in think_lvl or any(w in prompt for w in ["ราคา", "ข่าว", "เช็ค"]):
                 try:
-                    search = tavily.search(query=final_input, max_results=3)
+                    search = tavily.search(query=prompt, max_results=3)
                     context = "".join([r['content'] for r in search['results']])
                 except: pass
             
