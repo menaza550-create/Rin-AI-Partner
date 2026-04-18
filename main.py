@@ -5,66 +5,71 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import os, base64
 
-# --- 🌑 1. CONFIG & DARK STYLE (GEMINI DARK LOOK) ---
+# --- 🌑 1. CONFIG & DARK STYLE (HIGH VISIBILITY) ---
 st.set_page_config(page_title="Rin AI Assistant", layout="wide")
 
-# CSS ปรับแต่งให้เป็น Dark Mode 100% และเปิดเมนูให้เห็นชัดเจน
 st.markdown("""
     <style>
-    /* พื้นหลังสีดำเข้มแบบ Gemini Dark */
+    /* 1. พื้นหลังดำสนิทแบบพรีเมียม */
     .stApp {
-        background-color: #131314 !important;
+        background-color: #0e0e10 !important;
     }
     
-    /* ปรับแต่ง Font และสีตัวหนังสือเป็นสีขาว/เทาอ่อน */
+    /* 2. บังคับให้ไอคอนเมนู (3 ขีด) และ Header แสดงผลเป็นสีสว่าง */
+    header[data-testid="stHeader"] {
+        background-color: rgba(14, 14, 16, 0.8) !important;
+        visibility: visible !important;
+        color: white !important;
+    }
+    
+    /* ทำให้ปุ่มเมนู 3 ขีดเห็นชัดขึ้น */
+    button[kind="header"] {
+        color: white !important;
+    }
+
+    /* 3. ปรับแต่ง Font และสีตัวหนังสือ */
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
     html, body, [class*="css"] {
         font-family: 'Sarabun', sans-serif;
-        color: #e3e3e3 !important;
+        color: #efefef !important;
     }
 
-    /* เปิดเมนู 3 ขีดและส่วนหัวให้เห็นเป็นสีดำ */
-    header[data-testid="stHeader"] {
-        background-color: #131314 !important;
-        visibility: visible !important;
-    }
-    #MainMenu { visibility: visible !important; }
-
-    /* ปรับแต่งกล่องแชท */
+    /* 4. ปรับแต่งกล่องแชท */
     [data-testid="stChatMessage"] {
         background-color: transparent !important;
-        padding: 20px 0px !important;
+        border: none !important;
+        padding: 15px 0px !important;
     }
     
-    /* ปรับแต่งช่อง Input ด้านล่างให้เป็นสีเทาเข้ม */
+    /* 5. ช่องพิมพ์คำสั่ง (Gemini Style) */
     .stChatInputContainer {
         padding-bottom: 30px !important;
         background-color: transparent !important;
     }
     .stChatInputContainer > div {
-        border-radius: 28px !important;
-        border: 1px solid #444746 !important;
+        border-radius: 30px !important;
+        border: 1px solid #3c4043 !important;
         background-color: #1e1f20 !important;
-        color: #ffffff !important;
     }
     textarea {
         color: #ffffff !important;
     }
 
-    /* วิดีโอ Avatar วงกลม */
+    /* 6. วิดีโอ Avatar วงกลม */
     .video-container {
         display: flex;
         justify-content: center;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
+        margin-top: 10px;
     }
     .video-container video {
         border-radius: 50%;
-        border: 2px solid #444746;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        border: 2px solid #3c4043;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.8);
     }
     
-    /* ปรับสีไอคอนและปุ่ม */
-    button p { color: #ffffff !important; }
+    /* ซ่อน Footer ของ Streamlit แต่เปิดเมนูไว้ */
+    footer { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -76,10 +81,11 @@ def save_to_memory(boss_input):
         client = gspread.authorize(creds)
         sheet = client.open("Rin_Memory").worksheet("customer_data")
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # บันทึก วันที่ | บอสคิริลิ | ข้อความ
         sheet.append_row([now, "Boss Kirili", boss_input])
         return True
     except Exception as e:
-        return f"รินจดไม่ได้ค่ะบอส: {e}"
+        return f"รินบันทึกไม่ได้ค่ะ: {e}"
 
 # --- 🖼️ 3. AVATAR LOADING ---
 def get_rin_avatar():
@@ -94,18 +100,18 @@ def get_rin_avatar():
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# แสดงวิดีโอริน
+# แสดงวิดีโอรินสบตาบอส
 rin_video = get_rin_avatar()
 if rin_video:
-    st.markdown(f'''<div class="video-container"><video width="130" height="130" autoplay loop muted playsinline><source src="{rin_video}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
+    st.markdown(f'''<div class="video-container"><video width="140" height="140" autoplay loop muted playsinline><source src="{rin_video}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
 
-# แสดงข้อความแชท
+# แสดงประวัติการแชท
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# ช่องพิมพ์คำสั่ง
-prompt = st.chat_input("รินรอรับคำสั่งอยู่ในความมืดค่ะบอส...")
+# ช่องรับคำสั่ง
+prompt = st.chat_input("รินรอรับคำสั่งอยู่ในโหมด Dark ค่ะบอส...")
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -113,23 +119,23 @@ if prompt:
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # ระบบจดบันทึก
+        # ระบบวิเคราะห์คำสั่ง (จดบันทึก)
         if any(k in prompt for k in ["จด", "บันทึก", "จำ"]):
             status = save_to_memory(prompt)
-            response = "เรียบร้อยค่ะ! รินจดลง Sheets ให้แล้วนะ คะ 👓✨" if status is True else status
+            response = "เรียบร้อยค่ะ! รินจดลง Sheets ให้บอสแล้วนะคะ 👓✨" if status is True else status
         else:
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "คุณคือริน เลขาส่วนตัวบอสคิริลิ (Piyawut) ตอบหวานๆ ค่ะ/คะ"},
+                        {"role": "system", "content": "คุณคือริน (Rin) เลขาของบอสคิริลิ ตอบหวานๆ ค่ะ/คะ เสมอ"},
                         *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                     ],
                 )
                 response = res.choices[0].message.content
             except Exception as e:
-                response = f"สมองรินล้าไปนิดค่ะบอส: {e}"
+                response = f"สมองรินล้านิดหน่อยค่ะบอส: {e}"
 
         st.markdown(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
