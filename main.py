@@ -1,6 +1,8 @@
 import streamlit as st
 from groq import Groq
 from tavily import TavilyClient
+import google.generativeai as genai
+from PIL import Image
 import json
 import os
 import base64
@@ -9,7 +11,7 @@ import edge_tts
 from datetime import datetime
 
 # 👓 1. Setup
-st.set_page_config(page_title="Rin :: Private Secretary Pro", layout="centered")
+st.set_page_config(page_title="Rin :: Private Secretary Vision", layout="centered")
 
 # --- ฟังก์ชันวิดีโอ (ร่างเลขา) ---
 def render_rin_video(file_name):
@@ -40,29 +42,40 @@ def speak_now(text, voice_enabled):
             with open("rin_voice.mp3", "rb") as f:
                 st.audio(f.read(), format="audio/mp3", autoplay=True)
 
-# --- 🌍 ระบบเรดาร์ค้นหาข้อมูล (Tavily) ---
+# --- 🌍 ระบบค้นหา (Tavily) ---
 def search_the_world(query):
     tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-    # ค้นหาข้อมูลล่าสุดในไทย
     search_result = tavily.search(query=query, search_depth="basic", max_results=3)
     context = ""
     for res in search_result['results']:
         context += f"\nแหล่งที่มา: {res['url']}\nเนื้อหา: {res['content']}\n"
     return context
 
+# --- 👀 ระบบดวงตา (Gemini Vision) ---
+def rin_vision(image, prompt):
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    response = model.generate_content([prompt, image])
+    return response.text
+
 # --- ระบบความจำ ---
-MEMORY_FILE = "rin_pro_memory.json"
+MEMORY_FILE = "rin_vision_memory.json"
 if "messages" not in st.session_state:
     if os.path.exists(MEMORY_FILE):
         with open(MEMORY_FILE, "r", encoding="utf-8") as f:
             st.session_state.messages = json.load(f)
     else:
-        st.session_state.messages = [{"role": "assistant", "content": "เลขารินร่างโปรพร้อมรับใช้แล้วค่ะบอส! วันนี้อยากให้รินไปเช็คข่าวหรือราคาสินค้าอะไรให้ไหมคะ?"}]
+        st.session_state.messages = [{"role": "assistant", "content": "เลขารินร่างตาทิพย์มาแล้วค่ะ! บอสส่งรูปให้รินช่วยดูได้นะคะ"}]
 
 # --- Sidebar ---
 with st.sidebar:
     st.title("Secretary Desk 👓💼")
     voice_on = st.toggle("เปิดเสียงเลขา (โหมดส่วนตัว)", value=False)
+    st.write("---")
+    # ✅ ช่องอัปโหลดรูปภาพ
+    uploaded_file = st.file_uploader("ส่งรูปให้รินดูค่ะบอส", type=["jpg", "jpeg", "png"])
+    if uploaded_file:
+        st.image(uploaded_file, caption="รินเห็นรูปนี้แล้วค่ะ", use_column_width=True)
     st.write("---")
     if st.button("ล้างความจำ"):
         st.session_state.messages = []
@@ -71,7 +84,7 @@ with st.sidebar:
 
 # --- หน้าหลัก ---
 st.markdown(render_rin_video("1000024544"), unsafe_allow_html=True)
-st.markdown("<h2 style='text-align: center; color: #DDA0DD;'>Rin :: Private Secretary PRO</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #DDA0DD;'>Rin :: Private Secretary Vision</h2>", unsafe_allow_html=True)
 
 # เชื่อมต่อสมอง
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -80,36 +93,41 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-if prompt := st.chat_input("สั่งรินไปเช็คข่าว หรือคุยเล่นได้เลยค่ะ..."):
+if prompt := st.chat_input("สั่งริน หรือส่งรูปมาถามได้เลยค่ะ..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="👓"):
-        with st.spinner("เลขารินกำลังหาข้อมูลให้สักครู่นะคะ..."):
-            # 🕵️ ตรวจสอบว่าบอสสั่งให้หาข้อมูลหรือไม่
-            check_search = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": f"จากประโยคนี้ '{prompt}' บอสต้องการให้ค้นหาข้อมูลล่าสุดจากอินเทอร์เน็ตหรือไม่? ตอบแค่ 'YES' หรือ 'NO' เท่านั้น"}]
-            )
+        with st.spinner("เลขารินกำลังประมวลผลให้ค่ะ..."):
             
-            search_context = ""
-            if "YES" in check_search.choices[0].message.content.upper():
-                search_context = search_the_world(prompt)
+            # 1. ถ้ามีรูปภาพ ให้ใช้ Gemini Vision
+            if uploaded_file:
+                img = Image.open(uploaded_file)
+                answer = rin_vision(img, prompt)
+            else:
+                # 2. ถ้าไม่มีรูป ให้เช็คว่าต้องหาข้อมูลเน็ตไหม (Groq)
+                check_search = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": f"จากประโยค '{prompt}' บอสต้องการข้อมูลล่าสุดจากเน็ตใช่ไหม? ตอบ YES/NO"}]
+                )
+                
+                search_context = ""
+                if "YES" in check_search.choices[0].message.content.upper():
+                    search_context = search_the_world(prompt)
 
-            # 🧠 ให้รินสรุปข้อมูลด้วยบุคลิกเลขา
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "คุณคือ ริน เลขาส่วนตัวที่ฉลาดและรอบรู้มาก ข้อมูลล่าสุดจากเน็ตคือ: " + search_context + " ให้ตอบบอสด้วยความสุภาพ นุ่มนวล ลงท้ายด้วย 'ค่ะ/คะ' และสรุปข่าวให้เข้าใจง่ายที่สุดค่ะ"},
-                    *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-                ],
-                temperature=0.7
-            )
-            answer = response.choices[0].message.content
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": f"คุณคือ ริน เลขาส่วนตัวที่แสนดี ข้อมูลล่าสุดคือ: {search_context} ตอบด้วยความอ่อนหวาน ลงท้าย 'ค่ะ/คะ'"},
+                        *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                    ],
+                    temperature=0.7
+                )
+                answer = response.choices[0].message.content
+
             st.markdown(answer)
             speak_now(answer, voice_on)
-            
             st.session_state.messages.append({"role": "assistant", "content": answer})
             with open(MEMORY_FILE, "w", encoding="utf-8") as f:
                 json.dump(st.session_state.messages, f, ensure_ascii=False)
