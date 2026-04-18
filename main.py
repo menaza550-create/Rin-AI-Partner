@@ -8,7 +8,7 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts
 
 # --- 1. การตั้งค่าหน้าตาแอป ---
-st.set_page_config(page_title="Rin Secretary v33.2", layout="centered")
+st.set_page_config(page_title="Rin Secretary v33.3", layout="centered")
 
 st.markdown("""
     <style>
@@ -16,9 +16,9 @@ st.markdown("""
     .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #ffffff !important; }
     * { color: #000000 !important; font-size: 22px !important; }
     
-    /* 🛠️ ทำให้เห็นชัดเจนขึ้น */
+    /* 🛠️ */
     button[data-testid="stSidebarCollapse"] {
-        background-color: #DDA0DD !important; /* สีม่วงอ่อนธีมริน */
+        background-color: #DDA0DD !important;
         color: white !important;
         border-radius: 50% !important;
         width: 60px !important;
@@ -30,17 +30,19 @@ st.markdown("""
         z-index: 1000 !important;
         border: 2px solid #ffffff !important;
     }
-    
-    /* ปรับขนาดไอคอนลูกศรในปุ่มให้ใหญ่ขึ้น */
-    button[data-testid="stSidebarCollapse"] svg {
-        width: 35px !important;
-        height: 35px !important;
-        fill: white !important;
-    }
+    button[data-testid="stSidebarCollapse"] svg { width: 35px !important; height: 35px !important; fill: white !important; }
 
     /* กล่องแชท */
     .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
     header, #MainMenu, footer { visibility: visible !important; color: black !important; }
+    
+    /* ปรับแต่งส่วน Audio Recorder ให้ดูสวยขึ้นบนพื้นขาว */
+    div[data-testid="stHorizontalBlock"] {
+        background-color: #fcfcfc;
+        padding: 10px;
+        border-radius: 15px;
+        margin-bottom: 5px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -82,29 +84,54 @@ with st.sidebar:
         st.rerun()
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin Secretary v33.2</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin Secretary v33.3</h3>", unsafe_allow_html=True)
 
+# แสดงแชทเก่า
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- 6. ส่วนรับคำสั่ง ---
-prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
+# --- 🛠️ 6. ส่วนรับคำสั่ง (ไมค์ + พิมพ์) ---
+st.markdown("---")
+#
+col_mic, col_label = st.columns([1, 4])
+with col_mic:
+    audio_bytes = audio_recorder(text="", icon_size="2x", neutral_color="#444444", recording_color="#ff4b4b")
+with col_label:
+    if audio_bytes is None:
+        st.write("⬅️ กดที่ไมค์เพื่อสั่งด้วยเสียง")
+    else:
+        st.write("✨ รินกำลังฟังบอสอยู่นะ คะ...")
 
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
+final_input = None
+
+# จัดการข้อมูลจากไมโครโฟน
+if audio_bytes:
+    with st.spinner("รินกำลังแปลงเสียงเป็นตัวอักษร..."):
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        with open("temp_audio.wav", "wb") as f: f.write(audio_bytes)
+        with open("temp_audio.wav", "rb") as f:
+            transcript = client.audio.transcriptions.create(file=("temp_audio.wav", f.read()), model="whisper-large-v3")
+            final_input = transcript.text
+elif prompt:
+    final_input = prompt
+
+# ประมวลผลเมื่อมีข้อมูลเข้ามา
+if final_input:
+    st.session_state.messages.append({"role": "user", "content": final_input})
+    with st.chat_message("user"): st.markdown(final_input)
 
     with st.chat_message("assistant", avatar="👓"):
-        if any(w in prompt for w in ["จด", "บันทึก", "จำ"]):
-            res = save_to_rin_memory(prompt)
+        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
+            res = save_to_rin_memory(final_input)
             answer = "เรียบร้อยค่ะ! รินจดลง Sheets ให้บอสแล้วนะคะ 👓✨" if res is True else res
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
             context = ""
-            if "Max" in think_lvl or any(w in prompt for w in ["ราคา", "ข่าว", "เช็ค"]):
+            if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
                 try:
-                    search = tavily.search(query=prompt, max_results=3)
+                    search = tavily.search(query=final_input, max_results=3)
                     context = "".join([r['content'] for r in search['results']])
                 except: pass
             
