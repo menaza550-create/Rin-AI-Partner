@@ -7,75 +7,73 @@ import base64
 import asyncio
 import edge_tts
 
-# 👓 1. Setup หน้าตาแอป (เน้นความไวสูงสุด)
+# 👓 1. Setup หน้าตาแอป (เน้นความคลีนและสว่าง)
 st.set_page_config(page_title="Rin Secretary", layout="centered")
 
-# --- 🎨 CSS: โหมดมืดสนิท (Hard Dark) บังคับสีขาวชัดเจนและโหลดไว ---
+# --- 🎨 CSS: โหมดสว่าง (White & Clean) ตัวหนังสือดำใหญ่ชัดเจน ---
 st.markdown("""
     <style>
-    /* พื้นหลังดำสนิททั้งแอป */
+    /* พื้นหลังทั้งแอปและไซด์บาร์เป็นสีขาว */
     .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] {
-        background-color: #000000 !important;
+        background-color: #ffffff !important;
     }
     
-    /* บังคับตัวหนังสือสีขาวและขนาดใหญ่ 22px ทุกจุด */
+    /* บังคับตัวหนังสือทุกจุดให้เป็นสีดำ และขนาดใหญ่ 22px */
     * {
-        color: #ffffff !important;
+        color: #000000 !important;
         font-size: 22px !important;
     }
 
-    /* กล่องแชท: ดำสนิท ขอบบางเพื่อความไวในการเรนเดอร์ */
+    /* กล่องแชท: พื้นหลังสีเทาอ่อนมาก ขอบบางๆ เพื่อให้ดูสะอาดตา */
     .stChatMessage { 
-        background-color: #000000 !important; 
-        border: 1px solid #333 !important;
+        background-color: #f8f9fa !important; 
+        border: 1px solid #e0e0e0 !important;
         border-radius: 12px;
         margin-bottom: 10px;
     }
 
-    /* ปรับแต่ง Sidebar ให้ตัวหนังสือชัดเจน */
+    /* ปรับแต่ง Sidebar ให้ตัวหนังสือดำชัดเจน */
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] label {
-        color: #ffffff !important;
+        color: #000000 !important;
         font-weight: bold !important;
     }
 
-    /* ช่อง Input */
+    /* ช่อง Input: พื้นขาว ขอบดำ */
     .stTextInput input { 
-        background-color: #111 !important; 
-        color: #fff !important;
+        background-color: #ffffff !important; 
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
         border-radius: 20px !important;
     }
 
-    /* ซ่อนส่วนที่ทำให้โหลดช้า */
+    /* ปุ่มล้างแชท */
+    .stButton button {
+        background-color: #f0f2f6 !important;
+        color: #000000 !important;
+        border: 1px solid #ccc !important;
+    }
+
     #MainMenu, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🖼️ ฟังก์ชันโหลดร่างรินแบบด่วน (v25.0) ---
-@st.cache_data
-def get_video_base64(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-def show_rin_fast():
+# --- 🖼️ ฟังก์ชันแสดงร่างรินแบบประหยัดพลังงาน (ไฟล์ 1000024544) ---
+def show_rin_optimized():
     target = "1000024544"
-    for ext in [".mp4", ".MP4", ".mov", ".png", ".jpg"]:
+    for ext in [".mp4", ".MP4", ".mov"]:
         path = target + ext
         if os.path.exists(path):
-            if ext in [".mp4", ".MP4", ".mov"]:
-                try:
-                    b64 = get_video_base64(path)
-                    st.markdown(f'''
-                        <div style="display: flex; justify-content: center;">
-                            <video width="300" autoplay loop muted playsinline style="border-radius: 15px; border: 2px solid #DDA0DD;">
-                                <source src="data:video/mp4;base64,{b64}" type="video/mp4">
-                            </video>
-                        </div>''', unsafe_allow_html=True)
-                except: st.error("โหลดวิดีโอไม่สำเร็จค่ะ")
-            else:
-                st.image(path, width=300)
+            with open(path, "rb") as f:
+                data = f.read()
+            b64 = base64.b64encode(data).decode()
+            st.markdown(f'''
+                <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+                    <video width="280" autoplay loop muted playsinline style="border-radius: 15px; border: 2px solid #DDA0DD;">
+                        <source src="data:video/mp4;base64,{b64}" type="video/mp4">
+                    </video>
+                </div>''', unsafe_allow_html=True)
             return
-    st.write("รินกำลังแต่งตัวอยู่ค่ะบอส (ไม่พบไฟล์ 1000024544)")
+    st.write("รินสแตนบายรอรับคำสั่งค่ะบอส")
 
 # --- 🔊 เสียงหวานพรีเมียม ---
 async def make_voice(text):
@@ -97,8 +95,8 @@ with st.sidebar:
         st.rerun()
 
 # --- ส่วนแสดงผลหลัก ---
-show_rin_fast()
-st.markdown("<h3 style='text-align: center;'>Rin Secretary</h3>", unsafe_allow_html=True)
+show_rin_optimized()
+st.markdown("<h3 style='text-align: center; color: #000000;'>Rin Secretary</h3>", unsafe_allow_html=True)
 
 # แสดงแชท
 for m in st.session_state.messages:
@@ -108,13 +106,14 @@ for m in st.session_state.messages:
 # --- แถบเครื่องมือสั่งงาน ---
 col_mic, col_in = st.columns([1, 5])
 with col_mic:
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#ffffff")
+    # ปุ่มไมค์เปลี่ยนสีเป็นสีเข้มเพื่อให้เห็นชัดบนพื้นขาวค่ะ
+    audio = audio_recorder(text="", icon_size="2x", neutral_color="#333333", recording_color="#ff4b4b")
 
 prompt = st.chat_input("คุยกับเลขารินได้เลยค่ะบอส...")
 
 final_input = None
 if audio:
-    with st.spinner("กำลังฟัง..."):
+    with st.spinner("รินกำลังฟัง..."):
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         with open("t.wav", "wb") as f: f.write(audio)
         with open("t.wav", "rb") as f:
