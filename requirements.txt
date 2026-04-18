@@ -1,3 +1,4 @@
 streamlit
 groq
 edge-tts
+tavily-python
