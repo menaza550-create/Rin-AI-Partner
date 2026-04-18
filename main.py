@@ -8,8 +8,8 @@ from datetime import datetime
 from PIL import Image
 import os, base64, asyncio, edge_tts, groq
 
-# --- 1. การตั้งค่าหน้าตาแอป (White & Clean) ---
-st.set_page_config(page_title="Rin Secretary v35.1", layout="centered")
+# --- 1. การตั้งค่าหน้าตาแอป (White & Clean + Big Purple Button) ---
+st.set_page_config(page_title="Rin Secretary v35.2", layout="centered")
 
 st.markdown("""
     <style>
@@ -37,16 +37,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🛠️ 2. จุดที่แก้ไข: ระบบเช็กกุญแจ GOOGLE_API_KEY ---
+# --- 2. ระบบเช็กกุญแจ ---
 try:
-    # รินจะลองหยิบกุญแจ Gemini มาเปิดสมองค่ะ
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-except Exception as e:
-    # ถ้าหาไม่เจอ รินจะบอกบอสด้วยข้อความนี้แทนหน้าจอแดงค่ะ
-    st.error("👓 บอสคะ! รินหากุญแจ GOOGLE_API_KEY ไม่เจอในหน้า Secrets ค่ะ รบกวนบอสไปใส่ให้รินหน่อยนะ คะ (ถ้าใส่แล้วอาจจะพิมพ์ชื่อผิด ลองเช็กดูอีกทีนะ คะ)")
-    st.stop() # หยุดการทำงานเพื่อให้ระบบไม่พังค่ะ
+except:
+    st.error("👓 บอสคะ! รินหากุญแจ GOOGLE_API_KEY ไม่เจอในหน้า Secrets ค่ะ")
+    st.stop()
 
-# --- 3. ระบบความจำ (Google Sheets) ---
+# --- 3. ระบบความจำ ---
 def save_to_rin_memory(detail):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -72,18 +70,19 @@ async def make_voice(text):
 
 if "messages" not in st.session_state: st.session_state.messages = []
 
-# --- 5. Sidebar ---
+# --- 5. Sidebar (จุดที่แก้ไข: นำเมนูระดับการคิดกลับมาค่ะ) ---
 with st.sidebar:
     st.markdown("### Rin Settings 👓")
+    #
+    think_lvl = st.radio("ระดับการคิด:", ("Standard", "Max Reasoning ✨"))
     voice_on = st.toggle("เปิดเสียงเลขา", value=True)
     if st.button("ล้างประวัติการคุย"):
         st.session_state.messages = []
         st.rerun()
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin Secretary v35.1</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin Secretary v35.2</h3>", unsafe_allow_html=True)
 
-# ส่วนอัปโหลดรูปภาพ
 uploaded_file = st.file_uploader("📷 ส่งรูปภาพให้รินช่วยดูได้นะ คะบอส...", type=['jpg','jpeg','png'])
 if uploaded_file:
     st.image(uploaded_file, caption="รินกำลังเพ่งมองอยู่ค่ะ...", width=300)
@@ -119,13 +118,13 @@ if final_input:
             with st.spinner("รินกำลังประมวลผล..."):
                 tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
                 context = ""
-                if any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
+                #
+                if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
                     try:
                         res = tavily.search(query=final_input, max_results=3)
                         context = "".join([r['content'] for r in res['results']])
                     except: pass
                 
-                # เรียกใช้สมอง Gemini
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 content_parts = [f"คุณคือริน เลขาบอสคิริลิ ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"]
                 
