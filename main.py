@@ -2,20 +2,18 @@ import streamlit as st
 from groq import Groq
 from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
-import gspread
-from google.oauth2.service_account import Credentials
+from pyairtable import Api
 from datetime import datetime
 import os, base64, asyncio, edge_tts, pandas as pd
 
-# --- 1. การตั้งค่าหน้าตาแอป ---
-st.set_page_config(page_title="Rin v34.2 Business Partner", layout="centered", initial_sidebar_state="expanded")
+# --- 1. การตั้งค่าหน้าตาแอป (UI & Styling) ---
+st.set_page_config(page_title="Rin v34.8 Partner", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
     .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #ffffff !important; }
     * { color: #000000 !important; font-size: 20px; }
     
-    /* สไตล์สำหรับ Action Chips */
     .action-container {
         display: flex;
         flex-wrap: wrap;
@@ -47,36 +45,37 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ระบบจัดการ Google Sheets (จด + อ่าน) ---
-def get_gsheet():
+# --- 2. ระบบจัดการ Airtable (จด + อ่าน) ---
+def get_airtable_table():
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
-        client = gspread.authorize(creds)
-        return client.open("Rin_Memory").worksheet("customer_data")
+        api = Api(st.secrets["AIRTABLE_TOKEN"])
+        return api.table(st.secrets["AIRTABLE_BASE_ID"], st.secrets["AIRTABLE_TABLE_NAME"])
     except: return None
 
-def save_to_memory(detail):
+def save_to_memory(user_input, rin_output):
     try:
-        sheet = get_gsheet()
+        table = get_airtable_table()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([now, "บอสคิริลิ", detail])
+        table.create({
+            "Date": now,
+            "User": user_input,
+            "Rin": rin_output
+        })
         return True
     except: return False
 
 def read_last_memory(limit=10):
     try:
-        sheet = get_gsheet()
-        if not sheet: return "ระบบจำไม่ได้เชื่อมต่อค่ะ"
-        data = sheet.get_all_values()
-        if len(data) <= 1: return "ยังไม่มีประวัติการจดค่ะ"
-        last_rows = data[-limit:]
-        return "\n".join([f"- {r[0]}: {r[2]}" for r in last_rows])
+        table = get_airtable_table()
+        if not table: return "ระบบจำไม่ได้เชื่อมต่อค่ะ"
+        records = table.all(max_records=limit, sort=["-Date"])
+        if not records: return "ยังไม่มีประวัติการจดค่ะ"
+        return "\n".join([f"- {r['fields'].get('Date')}: บอสพูดว่า {r['fields'].get('User')}" for r in records])
     except: return "รินรื้อสมุดจดไม่สำเร็จค่ะ"
 
 # --- 3. ฟังก์ชันร่างริน & เสียง ---
 def show_rin():
-    path = "1000024544.mp4"
+    path = "1000024544.mp4" # มั่นใจว่าไฟล์นี้อยู่ใน GitHub นะคะบอส
     if os.path.exists(path):
         with open(path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
@@ -88,14 +87,14 @@ async def make_voice(text):
 
 if "messages" not in st.session_state: st.session_state.messages = []
 
-# --- 4. Sidebar: ---
+# --- 4. Sidebar: Business Dashboard ---
 with st.sidebar:
     st.markdown("### 📊 Business Dashboard")
     try:
         tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
         p_res = tavily.search(query="LUNC price USD today", max_results=1)
         st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:100]}...</div>', unsafe_allow_html=True)
-    except: st.write("⚠️ โหลดราคาเหรีย่งไม่ได้ค่ะ")
+    except: st.write("⚠️ โหลดราคาเหรียญไม่ได้ค่ะ")
     
     st.divider()
     st.markdown("### Rin Settings 👓")
@@ -106,9 +105,9 @@ with st.sidebar:
         st.rerun()
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v34.2 Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v34.8 Partner</h3>", unsafe_allow_html=True)
 
-# --- [NEW] 🚀 ACTION CHIPS Section ---
+# --- ACTION CHIPS ---
 st.markdown('<div class="action-container">'
     '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
     '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
@@ -143,27 +142,31 @@ if final_input:
     with st.chat_message("user"): st.markdown(final_input)
 
     with st.chat_message("assistant", avatar="👓"):
-        past_memory = read_last_memory(15)
+        past_memory = read_last_memory(10)
         
-        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
-            if save_to_memory(final_input):
-                answer = "เรียบร้อยค่ะ! รินจดลง Sheets ให้บอสแล้วนะคะ บอสวางใจได้เลยค่ะ 👓✨"
-            else: answer = "รินจดไม่ได้ค่ะ บอสเช็คสิทธิ์ Sheets หน่อยนะ คะ"
-        else:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            context = ""
-            if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
-                try:
-                    search = tavily.search(query=final_input, max_results=3)
-                    context = "".join([r['content'] for r in search['results']])
-                except: pass
+        # ค้นหาข้อมูลเพิ่มถ้าจำเป็น
+        context = ""
+        if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
+            try:
+                search = tavily.search(query=final_input, max_results=3)
+                context = "".join([r['content'] for r in search['results']])
+            except: pass
             
-            chat = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": f"คุณคือริน เลขาบอสคิริลิ (Piyawut) คนพัทยา ความจำ: {past_memory} ข้อมูลเน็ต: {context} ตอบอย่างชาญฉลาด หวานๆ ลงท้ายค่ะ/คะ"},
-                          *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]]
-            )
-            answer = chat.choices[0].message.content
+        # สร้างคำตอบจาก Groq
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        chat = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": f"คุณคือริน เลขาบอสคิริลิ (Piyawut) คนพัทยา ความจำล่าสุด: {past_memory} ข้อมูลเน็ต: {context} ตอบอย่างชาญฉลาด หวานๆ ลงท้ายค่ะ/คะ"},
+                      *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]]
+        )
+        answer = chat.choices[0].message.content
+        
+        # ตรวจสอบว่าต้อง "จด" ไหม
+        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
+            if save_to_memory(final_input, answer):
+                answer += "\n\n(รินจดลง Airtable ให้บอสแล้วนะคะ 📝)"
+            else:
+                answer += "\n\n(รินพยายามจดแล้วแต่ติดปัญหาเรื่องสิทธิ์ค่ะบอส ⚠️)"
         
         st.markdown(answer)
         if voice_on:
