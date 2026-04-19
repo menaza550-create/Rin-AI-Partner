@@ -9,7 +9,7 @@ import os, base64, asyncio, edge_tts, pandas as pd
 # ==========================================
 # 1. INITIAL CONFIG & STYLE
 # ==========================================
-st.set_page_config(page_title="Rin v34.8 Partner", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Rin v35.1 Partner", layout="centered", initial_sidebar_state="expanded")
 
 # CSS Styling - คงเดิมทุกอย่างตามที่บอสตั้งค่าไว้
 st.markdown("""
@@ -123,7 +123,10 @@ with st.sidebar:
 # ==========================================
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v34.8 Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v35.1 Partner</h3>", unsafe_allow_html=True)
+
+# ✨ เพิ่มช่องส่งรูป (ดวงตาของริน)
+img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส...", type=['png', 'jpg', 'jpeg'])
 
 # Action Chips
 st.markdown('<div class="action-container">'
@@ -145,13 +148,11 @@ for m in st.session_state.messages:
 
 col_mic, col_label = st.columns([1, 5])
 with col_mic:
-    # เพิ่ม key เพื่อป้องกันสถานะไมค์ค้าง
     audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444", recording_color="#ff4b4b", key="rin_mic_stable")
 
 prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
 final_input = None
 
-# ลำดับความสำคัญ: ถ้ามีการพิมพ์ ให้ใช้ข้อความพิมพ์ก่อน
 if prompt:
     final_input = prompt
 elif audio:
@@ -161,7 +162,6 @@ elif audio:
             with open("t.wav", "wb") as f: f.write(audio)
             with open("t.wav", "rb") as f:
                 transcription = client.audio.transcriptions.create(file=("t.wav", f.read()), model="whisper-large-v3")
-                # กรองคำขยะ (Dealing/Thank you)
                 text_result = transcription.text
                 if text_result.strip().lower() not in ["dealing.", "dealing", "thank you.", "thank you"] and len(text_result) > 1:
                     final_input = text_result
@@ -169,51 +169,68 @@ elif audio:
             st.error(f"ไมค์มีปัญหาค่ะบอส: {e}")
 
 # ==========================================
-# 6. AI PROCESSING & RESPONSE
+# 6. AI PROCESSING & RESPONSE (Brain & Vision)
 # ==========================================
 
-if final_input:
-    # แสดงข้อความผู้ใช้
-    st.session_state.messages.append({"role": "user", "content": final_input})
-    with st.chat_message("user"): st.markdown(final_input)
+if final_input or img_file:
+    # 6.1 เตรียมข้อความ Input
+    user_msg = final_input if final_input else "รินคะ ดูรูปนี้ให้หน่อยค่ะ"
+    st.session_state.messages.append({"role": "user", "content": user_msg})
+    with st.chat_message("user"): st.markdown(user_msg)
 
     with st.chat_message("assistant", avatar="👓"):
-        # 6.1 เตรียม Context (ความจำ + ค้นหา)
-        past_memory = read_last_memory(5)
-        context = ""
-        if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์"]):
+        with st.spinner("รินกำลังประมวลผลนะคะ..."):
+            past_memory = read_last_memory(5)
+            context = ""
+            
+            # ดึงข้อมูล Tavily ถ้าจำเป็น
+            if any(w in user_msg for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์"]):
+                try:
+                    search = tavily.search(query=user_msg, max_results=3)
+                    context = "".join([r['content'] for r in search['results']])
+                except: pass
+
             try:
-                search = tavily.search(query=final_input, max_results=3)
-                context = "".join([r['content'] for r in search['results']])
-            except: pass
+                client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+                
+                # 👁️ กรณีมีการส่งรูป: ใช้ Llama 3.2 Vision
+                if img_file:
+                    base64_image = base64.b64encode(img_file.read()).decode('utf-8')
+                    chat_completion = client.chat.completions.create(
+                        model="llama-3.2-11b-vision-preview",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": f"คุณคือริน เลขาบอสคิริลิแห่งพัทยา ความจำอดีต: {past_memory} ตอบบอสว่า: {user_msg}"},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                                ]
+                            }
+                        ]
+                    )
+                    answer = chat_completion.choices[0].message.content
+                
+                # 🧠 กรณีแชทปกติ: ใช้ Llama 3.3 70B (สมองที่ฉลาดที่สุด)
+                else:
+                    system_prompt = f"คุณคือริน เลขาบอสคิริลิ ความจำอดีต: {past_memory} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
+                    chat = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": system_prompt}] + st.session_state.messages[-5:]
+                    )
+                    answer = chat.choices[0].message.content
+                
+            except Exception as e:
+                answer = f"ขอโทษนะคะบอส สมองรินสะดุดนิดหน่อยค่ะ: {e}"
+
+            # 6.3 ระบบจดบันทึก
+            if any(w in user_msg for w in ["จด", "บันทึก", "จำ"]):
+                if save_to_memory(user_msg, answer):
+                    answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable ให้บอสแล้วนะคะ 📝)"
+
+            # 6.4 แสดงผลและส่งเสียง
+            st.markdown(answer)
+            if voice_on:
+                asyncio.run(make_voice(answer))
+                st.audio("rin_voice.mp3", autoplay=True)
             
-        # 6.2 เรียก Groq AI
-        try:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            system_prompt = f"""คุณคือ 'ริน' AI เลขาส่วนตัวของบอสคิริลิ (Piyawut) แห่งพัทยา 
-            ความจำในอดีต: {past_memory}
-            ข้อมูลปัจจุบัน: {context}
-            ตอบบอสอย่างชาญฉลาด มีเสน่ห์ ลงท้ายด้วย ค่ะ/คะ เสมอ"""
-            
-            chat = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": system_prompt}] + st.session_state.messages[-5:]
-            )
-            answer = chat.choices[0].message.content
-        except Exception as e:
-            answer = f"ขอโทษนะคะบอส สมองรินล้าไปนิดนึงค่ะ: {e}"
-        
-        # 6.3 ระบบจดบันทึก (Memory)
-        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
-            if save_to_memory(final_input, answer):
-                answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable ให้บอสแล้วนะคะ 📝)"
-            else:
-                answer += "\n\n(รินพยายามจดแล้วแต่ติดปัญหาเรื่องสิทธิ์ค่ะบอส ⚠️)"
-        
-        # 6.4 แสดงคำตอบและส่งเสียง
-        st.markdown(answer)
-        if voice_on:
-            asyncio.run(make_voice(answer))
-            st.audio("rin_voice.mp3", autoplay=True)
-            
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+            st.session_state.messages.append({"role": "assistant", "content": answer})
