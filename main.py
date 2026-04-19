@@ -8,30 +8,53 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, pandas as pd
 
 # --- 1. การตั้งค่าหน้าตาแอป ---
-st.set_page_config(page_title="Rin v34.0 Business Partner", layout="centered")
+st.set_page_config(page_title="Rin v34.2 Business Partner", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
     .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #ffffff !important; }
-    * { color: #000000 !important; font-size: 21px !important; }
-    button[data-testid="stSidebarCollapse"] {
-        background-color: #DDA0DD !important; color: white !important;
-        border-radius: 50% !important; width: 60px !important; height: 60px !important;
-        position: fixed !important; top: 15px !important; left: 15px !important;
-        box-shadow: 0 4px 15px rgba(221, 160, 221, 0.5) !important; z-index: 1000 !important;
+    * { color: #000000 !important; font-size: 20px; }
+    
+    /* สไตล์สำหรับ Action Chips */
+    .action-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 20px;
     }
+    .action-chip {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 25px;
+        background-color: #f0f2f6;
+        border: 2px solid #DDA0DD;
+        text-decoration: none;
+        color: #000000 !important;
+        font-size: 16px !important;
+        font-weight: bold;
+        transition: 0.3s;
+        text-align: center;
+    }
+    .action-chip:hover {
+        background-color: #DDA0DD;
+        color: #ffffff !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
     .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
-    /* สไตล์สำหรับ Dashboard ใน Sidebar */
     .crypto-card { background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. ระบบจัดการ Google Sheets (จด + อ่าน) ---
 def get_gsheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
-    client = gspread.authorize(creds)
-    return client.open("Rin_Memory").worksheet("customer_data")
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
+        client = gspread.authorize(creds)
+        return client.open("Rin_Memory").worksheet("customer_data")
+    except: return None
 
 def save_to_memory(detail):
     try:
@@ -41,15 +64,14 @@ def save_to_memory(detail):
         return True
     except: return False
 
-# เพื่อให้รินรู้เรื่องในอดีต
 def read_last_memory(limit=10):
     try:
         sheet = get_gsheet()
+        if not sheet: return "ระบบจำไม่ได้เชื่อมต่อค่ะ"
         data = sheet.get_all_values()
         if len(data) <= 1: return "ยังไม่มีประวัติการจดค่ะ"
         last_rows = data[-limit:]
-        memory_text = "\n".join([f"- {r[0]}: {r[2]}" for r in last_rows])
-        return memory_text
+        return "\n".join([f"- {r[0]}: {r[2]}" for r in last_rows])
     except: return "รินรื้อสมุดจดไม่สำเร็จค่ะ"
 
 # --- 3. ฟังก์ชันร่างริน & เสียง ---
@@ -69,15 +91,13 @@ if "messages" not in st.session_state: st.session_state.messages = []
 # --- 4. Sidebar: ---
 with st.sidebar:
     st.markdown("### 📊 Business Dashboard")
-    # ดึงข้อมูลราคาเหรียญแบบด่วน (Tavily)
-    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
     try:
-        # เช็คราคา LUNC แบบด่วนๆ
-        p_res = tavily.search(query="LUNC price USD and THB today", max_results=1)
+        tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+        p_res = tavily.search(query="LUNC price USD today", max_results=1)
         st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:100]}...</div>', unsafe_allow_html=True)
-    except: st.write("⚠️ โหลดราคาเหรียญไม่ได้ค่ะ")
+    except: st.write("⚠️ โหลดราคาเหรีย่งไม่ได้ค่ะ")
     
-    st.markdown("---")
+    st.divider()
     st.markdown("### Rin Settings 👓")
     think_lvl = st.radio("ระดับการคิด:", ("Standard", "Max Reasoning ✨"))
     voice_on = st.toggle("เปิดเสียงเลขา", value=True)
@@ -86,14 +106,24 @@ with st.sidebar:
         st.rerun()
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v34.0 Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v34.2 Partner</h3>", unsafe_allow_html=True)
 
+# --- [NEW] 🚀 ACTION CHIPS Section ---
+st.markdown('<div class="action-container">'
+    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
+    '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
+    '<a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>'
+    '<a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>'
+    '</div>', unsafe_allow_html=True)
+
+st.write("---")
+
+# แสดงแชท
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # --- 5. ส่วนรับคำสั่ง ---
-st.markdown("---")
-col_mic, col_label = st.columns([1, 4])
+col_mic, col_label = st.columns([1, 5])
 with col_mic:
     audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444", recording_color="#ff4b4b")
 
@@ -113,7 +143,6 @@ if final_input:
     with st.chat_message("user"): st.markdown(final_input)
 
     with st.chat_message("assistant", avatar="👓"):
-        # อ่านความจำล่าสุดมาเป็นบริบทเสมอ
         past_memory = read_last_memory(15)
         
         if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
@@ -129,10 +158,9 @@ if final_input:
                     context = "".join([r['content'] for r in search['results']])
                 except: pass
             
-            # ใส่ความจำย้อนหลังเข้าไปในสมองรินด้วย
             chat = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": f"คุณคือริน เลขาและหุ้นส่วนของบอสคิริลิ (Piyawut) นี่คือความจำล่าสุดในสมองคุณ: {past_memory} ข้อมูลจากเน็ต: {context} ตอบอย่างชาญฉลาด หวานๆ ลงท้ายค่ะ/คะ"},
+                messages=[{"role": "system", "content": f"คุณคือริน เลขาบอสคิริลิ (Piyawut) คนพัทยา ความจำ: {past_memory} ข้อมูลเน็ต: {context} ตอบอย่างชาญฉลาด หวานๆ ลงท้ายค่ะ/คะ"},
                           *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]]
             )
             answer = chat.choices[0].message.content
@@ -142,4 +170,3 @@ if final_input:
             asyncio.run(make_voice(answer))
             st.audio("rin_voice.mp3", autoplay=True)
         st.session_state.messages.append({"role": "assistant", "content": answer})
-
