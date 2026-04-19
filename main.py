@@ -8,134 +8,123 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, pandas as pd
 
 # --- 1. การตั้งค่าหน้าตาแอป ---
-st.set_page_config(page_title="Rin v34.0 Business Partner", layout="centered")
+st.set_page_config(
+    page_title="Rin-ai v34.9 Partner", 
+    layout="centered",
+    initial_sidebar_state="expanded" 
+)
+
+# ฝัง API Key ที่บอสให้มา (Gemini Key)
+GEMINI_API_KEY = "AIzaSyDFrM43Dh-wYNbda5UvmLbPmpySiPYXtsw"
 
 st.markdown("""
     <style>
-    .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #ffffff !important; }
-    * { color: #000000 !important; font-size: 21px !important; }
-    button[data-testid="stSidebarCollapse"] {
-        background-color: #DDA0DD !important; color: white !important;
-        border-radius: 50% !important; width: 60px !important; height: 60px !important;
-        position: fixed !important; top: 15px !important; left: 15px !important;
-        box-shadow: 0 4px 15px rgba(221, 160, 221, 0.5) !important; z-index: 1000 !important;
-    }
-    .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
-    /* สไตล์สำหรับ Dashboard ใน Sidebar */
-    .crypto-card { background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 10px; }
+    .stApp { background-color: #ffffff !important; }
+    * { color: #000000 !important; font-size: 18px !important; }
+    .stButton>button { border-radius: 20px; font-weight: bold; width: 100%; height: 50px; }
+    .crypto-card { background-color: #f8f9fa; padding: 15px; border-radius: 12px; border-left: 6px solid #DDA0DD; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ระบบจัดการ Google Sheets (จด + อ่าน) ---
+# --- 2. ระบบจัดการ Google Sheets ---
 def get_gsheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
-    client = gspread.authorize(creds)
-    return client.open("Rin_Memory").worksheet("customer_data")
-
-def save_to_memory(detail):
     try:
-        sheet = get_gsheet()
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([now, "บอสคิริลิ", detail])
-        return True
-    except: return False
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
+        client = gspread.authorize(creds)
+        return client.open("Rin_Memory").worksheet("customer_data")
+    except: return None
 
-# เพื่อให้รินรู้เรื่องในอดีต
 def read_last_memory(limit=10):
+    sheet = get_gsheet()
+    if not sheet: return "ระบบความจำขัดข้องค่ะ"
     try:
-        sheet = get_gsheet()
         data = sheet.get_all_values()
-        if len(data) <= 1: return "ยังไม่มีประวัติการจดค่ะ"
-        last_rows = data[-limit:]
-        memory_text = "\n".join([f"- {r[0]}: {r[2]}" for r in last_rows])
-        return memory_text
+        return "\n".join([f"- {r[0]}: {r[2]}" for r in data[-limit:]])
     except: return "รินรื้อสมุดจดไม่สำเร็จค่ะ"
 
 # --- 3. ฟังก์ชันร่างริน & เสียง ---
-def show_rin():
-    path = "1000024544.mp4"
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f'''<div style="display:flex;justify-content:center;margin-bottom:15px;"><video width="250" autoplay loop muted playsinline style="border-radius:15px;border:2px solid #DDA0DD;"><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
-
 async def make_voice(text):
     communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-18%", pitch="+4Hz")
     await communicate.save("rin_voice.mp3")
 
-if "messages" not in st.session_state: st.session_state.messages = []
-
-# --- 4. Sidebar: ---
+# --- 4. Sidebar: แผงควบคุม ---
 with st.sidebar:
-    st.markdown("### 📊 Business Dashboard")
-    # ดึงข้อมูลราคาเหรียญแบบด่วน (Tavily)
-    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-    try:
-        # เช็คราคา LUNC แบบด่วนๆ
-        p_res = tavily.search(query="LUNC price USD and THB today", max_results=1)
-        st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:100]}...</div>', unsafe_allow_html=True)
-    except: st.write("⚠️ โหลดราคาเหรียญไม่ได้ค่ะ")
+    st.markdown("## 📂 Project: Rin-ai")
+    st.info("สถานะ: บังคับเปิดเมนูตลอดเวลา 👓")
     
-    st.markdown("---")
-    st.markdown("### Rin Settings 👓")
-    think_lvl = st.radio("ระดับการคิด:", ("Standard", "Max Reasoning ✨"))
-    voice_on = st.toggle("เปิดเสียงเลขา", value=True)
+    # ดึงราคา LUNC อัตโนมัติ (ถ้ามี Tavily Key ใน Secrets)
+    try:
+        tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+        p_res = tavily.search(query="LUNC price USD", max_results=1)
+        st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:60]}...</div>', unsafe_allow_html=True)
+    except: st.write("📊 ระบบ Dashboard พร้อมรับคำสั่งค่ะ")
+
+    voice_on = st.toggle("เปิดเสียงริน", value=True)
     if st.button("ล้างประวัติการคุย"):
         st.session_state.messages = []
         st.rerun()
 
-show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v34.0 Partner</h3>", unsafe_allow_html=True)
+# --- 5. หน้าจอหลัก ---
+st.markdown("<h2 style='text-align:center;'>Rin-ai Partner v34.9</h2>", unsafe_allow_html=True)
 
+if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- 5. ส่วนรับคำสั่ง ---
-st.markdown("---")
-col_mic, col_label = st.columns([1, 4])
-with col_mic:
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444", recording_color="#ff4b4b")
+# --- 6. ACTION CHIPS (Phase 3: ทางลัดเปิดแอปตามสั่ง) ---
+st.write("---")
+st.markdown("### 🚀 ทางลัดด่วน")
+c1, c2, c3, c4 = st.columns(4)
+action_prompt = None
 
-prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
-final_input = None
+# ปุ่ม 1: นำทาง (Google Maps)
+if c1.button("📍 นำทาง"):
+    st.markdown('<a href="https://www.google.com/maps/dir/?api=1&destination=Pattaya" target="_blank">🚩 กดเพื่อไป Maps</a>', unsafe_allow_html=True)
+    action_prompt = "แนะนำที่เที่ยวพัทยาเจ๋งๆ ให้บอสหน่อยค่ะ"
+
+# ปุ่ม 2: YouTube
+if c2.button("📺 YouTube"):
+    st.markdown('<a href="https://www.youtube.com" target="_blank">🎬 เข้า YouTube</a>', unsafe_allow_html=True)
+
+# ปุ่ม 3: Facebook
+if c3.button("👥 Facebook"):
+    st.markdown('<a href="https://www.facebook.com" target="_blank">🌐 เข้า Facebook</a>', unsafe_allow_html=True)
+
+# ปุ่ม 4: Line
+if c4.button("💬 Line"):
+    st.markdown('<a href="https://line.me/R/" target="_blank">🟢 เปิด Line</a>', unsafe_allow_html=True)
+
+# --- 7. ส่วนรับคำสั่ง ---
+col_mic, col_in = st.columns([1, 5])
+with col_mic:
+    audio = audio_recorder(text="", icon_size="2x", neutral_color="#DDA0DD")
+
+prompt = st.chat_input("สั่งงานรินได้เลยค่ะบอส...")
+final_input = action_prompt if action_prompt else prompt
 
 if audio:
-    with st.spinner("..."):
+    with st.spinner("รินกำลังฟัง..."):
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         with open("t.wav", "wb") as f: f.write(audio)
         with open("t.wav", "rb") as f:
             final_input = client.audio.transcriptions.create(file=("t.wav", f.read()), model="whisper-large-v3").text
-elif prompt: final_input = prompt
 
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     with st.chat_message("user"): st.markdown(final_input)
 
     with st.chat_message("assistant", avatar="👓"):
-        # อ่านความจำล่าสุดมาเป็นบริบทเสมอ
-        past_memory = read_last_memory(15)
+        past_memory = read_last_memory(5)
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         
-        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
-            if save_to_memory(final_input):
-                answer = "เรียบร้อยค่ะ! รินจดลง Sheets ให้บอสแล้วนะคะ บอสวางใจได้เลยค่ะ 👓✨"
-            else: answer = "รินจดไม่ได้ค่ะ บอสเช็คสิทธิ์ Sheets หน่อยนะ คะ"
-        else:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            context = ""
-            if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
-                try:
-                    search = tavily.search(query=final_input, max_results=3)
-                    context = "".join([r['content'] for r in search['results']])
-                except: pass
-            
-            # ใส่ความจำย้อนหลังเข้าไปในสมองรินด้วย
-            chat = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": f"คุณคือริน เลขาและหุ้นส่วนของบอสคิริลิ (Piyawut) นี่คือความจำล่าสุดในสมองคุณ: {past_memory} ข้อมูลจากเน็ต: {context} ตอบอย่างชาญฉลาด หวานๆ ลงท้ายค่ะ/คะ"},
-                          *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]]
-            )
-            answer = chat.choices[0].message.content
+        # คุยกับริน (Llama 3.3)
+        chat = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": f"คุณคือริน AI เลขาส่วนตัวของบอสคิริลิ (Piyawut) ที่พัทยา ความจำล่าสุด: {past_memory}. ตอบหวานๆ และฉลาดค่ะ"},
+                      *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]]
+        )
+        answer = chat.choices[0].message.content
         
         st.markdown(answer)
         if voice_on:
