@@ -6,7 +6,7 @@ gspread
 google-auth
 edge-tts>=6.1.12
 pandas
-google-generativeai
+google-generativeai>=0.8.3
 oauth2client
 pyairtable
 aiohttp>=3.9.0
