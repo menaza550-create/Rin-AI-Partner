@@ -4,8 +4,9 @@ tavily-python
 audio-recorder-streamlit
 gspread
 google-auth
-edge-tts
+edge-tts>=6.1.12
 pandas
 google-generativeai
 oauth2client
 pyairtable
+aiohttp>=3.9.0
