@@ -9,9 +9,9 @@ from PIL import Image
 import os, base64, asyncio, edge_tts, pandas as pd
 
 # ==========================================
-# 1. INITIAL CONFIG & STYLE (คงเดิม 100%)
+# 1. INITIAL CONFIG & STYLE (บอสตั้งค่าไว้สวยแล้ว รินไม่แตะเลยค่ะ)
 # ==========================================
-st.set_page_config(page_title="Rin v35.9 Partner", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Rin v36.1 Partner", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -50,7 +50,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CORE FUNCTIONS (คงฟีเจอร์เดิมครบถ้วน)
+# 2. CORE FUNCTIONS (Airtable, Voice, Media)
 # ==========================================
 
 def get_airtable_table():
@@ -114,7 +114,7 @@ with st.sidebar:
 # ==========================================
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v35.9 Immortal Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v36.1 Immortal Partner</h3>", unsafe_allow_html=True)
 
 # ✨ ช่องส่งรูป (ดวงตา Gemini 👁️)
 img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส...", type=['png', 'jpg', 'jpeg'])
@@ -156,7 +156,7 @@ elif audio:
         except: pass
 
 # ==========================================
-# 6. AI PROCESSING & RESPONSE (Fixed Model & Connection)
+# 6. AI PROCESSING & RESPONSE (The Absolute Fix)
 # ==========================================
 
 if final_input or img_file:
@@ -169,7 +169,6 @@ if final_input or img_file:
             past_mem = read_last_memory(5)
             context = ""
             
-            # ดึงข้อมูลจาก Tavily (ระบบสืบค้น)
             if any(w in user_msg for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์"]):
                 try:
                     search = tavily.search(query=user_msg, max_results=3)
@@ -177,21 +176,21 @@ if final_input or img_file:
                 except: pass
 
             try:
-                # 👁️ กรณีส่งรูป: ใช้ชื่อรุ่นมาตรฐานและเปิดโหมด REST เพื่อแก้ปัญหา 404 ค่ะ
+                # 👁️ ดวงตาคู่ใหม่: ใช้การระบุรุ่นแบบเต็ม และบังคับ transport REST ค่ะ
                 if img_file:
-                    # ✅ ปรับปรุงจุดนี้ค่ะ: ใช้ transport='rest' เพื่อความชัวร์ 100%
+                    # ✅ ปรับปรุงจุดนี้ค่ะ: ใช้ transport='rest' และชื่อโมเดลแบบเต็ม
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"], transport='rest')
-                    model_v = genai.GenerativeModel('gemini-1.5-flash')
+                    model_v = genai.GenerativeModel(model_name="models/gemini-1.5-flash") # ใส่ prefix 'models/' เพื่อความชัวร์
                     img_pil = Image.open(img_file)
                     
-                    vision_prompt = f"คุณคือริน AI เลขาส่วนตัวบอสคิริลิแห่งพัทยา ความจำอดีต: {past_mem} คำถามบอส: {user_msg}"
+                    vision_prompt = f"คุณคือริน AI เลขาส่วนตัวบอส Piyawut แห่งพัทยา ความจำอดีต: {past_mem} คำถามบอส: {user_msg}"
                     response = model_v.generate_content([vision_prompt, img_pil])
                     answer = response.text
                 
-                # 🧠 กรณีแชทปกติ: ใช้สมอง Groq Llama 3.3 (ไวที่สุด)
                 else:
+                    # 🧠 สมองส่วนแชท Groq Llama 3.3 (0 บาทแต่ไวมาก)
                     client_g = Groq(api_key=st.secrets["GROQ_API_KEY"])
-                    sys_prompt = f"คุณคือริน เลขาบอสคิริลิ ความจำอดีต: {past_mem} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
+                    sys_prompt = f"คุณคือริน เลขาบอส Piyawut ความจำอดีต: {past_mem} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
                     chat = client_g.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages[-5:]
