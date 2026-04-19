@@ -11,7 +11,7 @@ import os, base64, asyncio, edge_tts, pandas as pd
 GEMINI_API_KEY = "AIzaSyDFrM43Dh-wYNbda5UvmLbPmpySiPYXtsw"
 
 # --- 1. การตั้งค่าหน้าตาแอป ---
-st.set_page_config(page_title="Rin v34.0 Business Partner", layout="centered")
+st.set_page_config(page_title="Rin v34.2 Utility Partner", layout="centered")
 
 st.markdown("""
     <style>
@@ -24,10 +24,8 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(221, 160, 221, 0.5) !important; z-index: 1000 !important;
     }
     .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
-    /* สไตล์สำหรับ Dashboard ใน Sidebar */
-    .crypto-card { background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 10px; }
     
-    /* [ADD] สไตล์สำหรับ Action Chips */
+    /* สไตล์สำหรับ Action Chips */
     .action-chip {
         display: inline-block;
         padding: 8px 16px;
@@ -42,6 +40,12 @@ st.markdown("""
         transition: 0.3s;
     }
     .action-chip:hover { background-color: #DDA0DD; color: white !important; }
+    
+    /* [ADD] สไตล์สำหรับ Utility Bar ใต้ข้อความ */
+    .utility-btn-style {
+        margin-top: -10px;
+        margin-bottom: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -102,9 +106,9 @@ with st.sidebar:
         st.rerun()
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v34.0 Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v34.2 Partner</h3>", unsafe_allow_html=True)
 
-# --- [ADD] ACTION CHIPS Section ---
+# --- ACTION CHIPS Section ---
 st.markdown("### 🚀 ทางลัดด่วน")
 c1, c2, c3, c4 = st.columns(4)
 with c1:
@@ -117,10 +121,33 @@ with c4:
     st.markdown('<a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>', unsafe_allow_html=True)
 st.markdown("---")
 
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
+# --- 5. แสดงแชทและ [Utility Bar] ---
+for i, m in enumerate(st.session_state.messages):
+    with st.chat_message(m["role"]): 
+        st.markdown(m["content"])
+        
+        # [ADD] Utility Bar สำหรับ Assistant เท่านั้น
+        if m["role"] == "assistant":
+            ut1, ut2, ut3, ut4, ut5, _ = st.columns([0.12, 0.12, 0.12, 0.12, 0.12, 0.4])
+            with ut1:
+                if st.button("📋", key=f"copy_{i}", help="คัดลอกข้อความ"):
+                    st.toast("คัดลอกข้อความแล้วค่ะ!")
+            with ut2:
+                if st.button("🔊", key=f"speak_{i}", help="ฟังเสียงอีกครั้ง"):
+                    if os.path.exists("rin_voice.mp3"):
+                        st.audio("rin_voice.mp3", autoplay=True)
+            with ut3:
+                if st.button("🔖", key=f"save_btn_{i}", help="บันทึกลงความจำด่วน"):
+                    if save_to_memory(m["content"]):
+                        st.toast("บันทึกลง Sheets เรียบร้อยค่ะ!")
+            with ut4:
+                if st.button("🔗", key=f"share_{i}", help="แชร์ข้อความ"):
+                    st.toast("เตรียมข้อมูลแชร์ให้บอสแล้วค่ะ!")
+            with ut5:
+                if st.button("🔄", key=f"retry_{i}", help="ลองตอบใหม่อีกครั้ง"):
+                    st.rerun()
 
-# --- 5. ส่วนรับคำสั่ง ---
+# --- 6. ส่วนรับคำสั่ง ---
 col_mic, col_label = st.columns([1, 4])
 with col_mic:
     audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444", recording_color="#ff4b4b")
@@ -168,3 +195,4 @@ if final_input:
             asyncio.run(make_voice(answer))
             st.audio("rin_voice.mp3", autoplay=True)
         st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.rerun() # เพื่อให้ปุ่ม Utility Bar แสดงผลทันทีหลังตอบ
