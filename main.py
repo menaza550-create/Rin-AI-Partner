@@ -9,7 +9,7 @@ import os, base64, asyncio, edge_tts, pandas as pd
 # ==========================================
 # 1. INITIAL CONFIG & STYLE (คงเดิม 100%)
 # ==========================================
-st.set_page_config(page_title="Rin v35.2 Partner", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Rin v35.2.1 Partner", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -48,7 +48,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CORE FUNCTIONS (คงเดิมทุกฟีเจอร์)
+# 2. CORE FUNCTIONS
 # ==========================================
 
 def get_airtable_table():
@@ -86,7 +86,7 @@ async def make_voice(text):
     await communicate.save("rin_voice.mp3")
 
 # ==========================================
-# 3. SIDEBAR & DASHBOARD (คงเดิม)
+# 3. SIDEBAR & DASHBOARD
 # ==========================================
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -108,16 +108,14 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 4. MAIN UI (คงเดิม)
+# 4. MAIN UI
 # ==========================================
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v35.2 Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v35.2.1 Partner</h3>", unsafe_allow_html=True)
 
-# 👁️ ดวงตาของริน
 img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส...", type=['png', 'jpg', 'jpeg'])
 
-# Action Chips
 st.markdown('<div class="action-container">'
     '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
     '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
@@ -131,7 +129,7 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # ==========================================
-# 5. INPUT HANDLING (คงเดิม)
+# 5. INPUT HANDLING
 # ==========================================
 
 col_mic, col_label = st.columns([1, 5])
@@ -154,7 +152,7 @@ elif audio:
         except: pass
 
 # ==========================================
-# 6. AI PROCESSING & RESPONSE (อัปเกรดตาใหม่!)
+# 6. AI PROCESSING & RESPONSE (Safe Edition)
 # ==========================================
 
 if final_input or img_file:
@@ -175,24 +173,19 @@ if final_input or img_file:
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 
-                # 👁️ อัปเกรดเป็น Llama-3.2-90b-vision-preview (ตัวล่าสุดที่ Groq แนะนำ)
                 if img_file:
                     base64_image = base64.b64encode(img_file.read()).decode('utf-8')
                     chat_completion = client.chat.completions.create(
                         model="llama-3.2-90b-vision-preview",
-                        messages=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": f"คุณคือริน เลขาบอสคิริลิ ความจำ: {past_mem} ตอบบอสว่า: {user_msg}"},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                                ]
-                            }
-                        ]
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": f"คุณคือริน เลขาบอสคิริลิ ความจำ: {past_mem} ตอบบอสว่า: {user_msg}"},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                            ]
+                        }]
                     )
                     answer = chat_completion.choices[0].message.content
-                
-                # 🧠 แชทปกติใช้ Llama-3.3-70b เหมือนเดิม
                 else:
                     sys_prompt = f"คุณคือริน เลขาบอสคิริลิ ความจำอดีต: {past_mem} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
                     chat = client.chat.completions.create(
@@ -204,14 +197,18 @@ if final_input or img_file:
             except Exception as e:
                 answer = f"ขอโทษนะคะบอส สมองรินสะดุดนิดหน่อยค่ะ: {e}"
 
-            # จดบันทึก Memory
             if any(w in user_msg for w in ["จด", "บันทึก", "จำ"]):
                 if save_to_memory(user_msg, answer):
-                    answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable แล้วนะคะ 📝)"
+                    answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable ให้แล้วนะคะ 📝)"
 
             st.markdown(answer)
+            
+            # ✅ แก้ไขตรงนี้: ใส่ระบบกันล่มให้ระบบเสียง
             if voice_on:
-                asyncio.run(make_voice(answer))
-                st.audio("rin_voice.mp3", autoplay=True)
+                try:
+                    asyncio.run(make_voice(answer))
+                    st.audio("rin_voice.mp3", autoplay=True)
+                except Exception as voice_err:
+                    st.warning("⚠️ ตอนนี้เสียงรินขัดข้องชั่วคราว แต่รินยังแชทกับบอสได้ปกตินะ คะ!")
             
             st.session_state.messages.append({"role": "assistant", "content": answer})
