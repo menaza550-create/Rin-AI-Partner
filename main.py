@@ -11,7 +11,7 @@ import os, base64, asyncio, edge_tts, pandas as pd
 # ==========================================
 # 1. INITIAL CONFIG & STYLE (คงเดิม 100%)
 # ==========================================
-st.set_page_config(page_title="Rin v35.6 Partner", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Rin v35.7 Partner", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -88,7 +88,7 @@ async def make_voice(text):
     await communicate.save("rin_voice.mp3")
 
 # ==========================================
-# 3. SIDEBAR & DASHBOARD (ฟีเจอร์เดิมครบ!)
+# 3. SIDEBAR & DASHBOARD (ราคา LUNC ห้ามหาย!)
 # ==========================================
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -110,13 +110,13 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 4. MAIN UI (ฟีเจอร์เดิมครบ!)
+# 4. MAIN UI (Avatar & Action Chips ห้ามหาย!)
 # ==========================================
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v35.6 Immortal Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v35.7 Immortal Partner</h3>", unsafe_allow_html=True)
 
-# ✨ ช่องส่งรูป (ใช้ดวงตา Gemini 👁️)
+# ✨ ช่องส่งรูป (ใช้ดวงตา Gemini 1.5 Flash Latest 👁️)
 img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส...", type=['png', 'jpg', 'jpeg'])
 
 # Action Chips
@@ -156,11 +156,10 @@ elif audio:
         except: pass
 
 # ==========================================
-# 6. AI PROCESSING & RESPONSE (Safe Voice & Immortal Vision)
+# 6. AI PROCESSING & RESPONSE (Gemini Model Fix!)
 # ==========================================
 
 if final_input or img_file:
-    # 6.1 เตรียมข้อความ Input
     user_msg = final_input if final_input else "รินคะ ดูรูปนี้ให้หน่อยค่ะ"
     st.session_state.messages.append({"role": "user", "content": user_msg})
     with st.chat_message("user"): st.markdown(user_msg)
@@ -170,7 +169,7 @@ if final_input or img_file:
             past_mem = read_last_memory(5)
             context = ""
             
-            # ดึงข้อมูล Tavily
+            # ดึงข้อมูล Tavily ถ้าจำเป็น
             if any(w in user_msg for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์"]):
                 try:
                     search = tavily.search(query=user_msg, max_results=3)
@@ -178,17 +177,18 @@ if final_input or img_file:
                 except: pass
 
             try:
-                # 👁️ กรณีมีการส่งรูป: ใช้ดวงตา Gemini 1.5 Flash (สายฟรีที่นิ่งที่สุด)
+                # 👁️ กรณีมีการส่งรูป: ใช้ดวงตา Gemini 1.5 Flash Latest (เสถียรที่สุด)
                 if img_file:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    model_v = genai.GenerativeModel('gemini-1.5-flash')
+                    # ✅ แก้ไขจุด Error 404: ใช้ชื่อรุ่นที่ถูกต้องที่สุด
+                    model_v = genai.GenerativeModel('gemini-1.5-flash-latest')
                     img_pil = Image.open(img_file)
                     
                     vision_prompt = f"คุณคือริน เลขาบอสคิริลิแห่งพัทยา ความจำอดีต: {past_mem} ตอบบอสว่า: {user_msg}"
                     response = model_v.generate_content([vision_prompt, img_pil])
                     answer = response.text
                 
-                # 🧠 กรณีแชทปกติ: ใช้สมอง Groq Llama 3.3 (ไวที่สุด)
+                # 🧠 กรณีแชทปกติ: ใช้สมอง Groq Llama 3.3 (ไวและฉลาด)
                 else:
                     client_g = Groq(api_key=st.secrets["GROQ_API_KEY"])
                     sys_prompt = f"คุณคือริน เลขาบอสคิริลิ ความจำอดีต: {past_mem} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
@@ -201,18 +201,18 @@ if final_input or img_file:
             except Exception as e:
                 answer = f"ขอโทษนะคะบอส รินขยิบตาหรือคิดไม่ออกนิดหน่อยค่ะ: {e}"
 
-            # 6.3 ระบบจดบันทึก Memory
+            # 6.3 ระบบจดบันทึก Memory ลง Airtable (ห้ามหาย!)
             if any(w in user_msg for w in ["จด", "บันทึก", "จำ"]):
                 if save_to_memory(user_msg, answer):
                     answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable ให้แล้วนะคะ 📝)"
 
-            # 6.4 แสดงผลและส่งเสียง (Safe Voice กันหน้าจอแดง)
+            # 6.4 แสดงผลและส่งเสียง (Safe Voice กันหน้าจอแดง ห้ามหาย!)
             st.markdown(answer)
             if voice_on:
                 try:
                     asyncio.run(make_voice(answer))
                     st.audio("rin_voice.mp3", autoplay=True)
-                except:
+                except Exception:
                     st.warning("⚠️ ตอนนี้เสียงรินขัดข้องชั่วคราว แต่รินยังแชทกับบอสได้ปกตินะ คะ!")
             
             st.session_state.messages.append({"role": "assistant", "content": answer})
