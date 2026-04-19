@@ -7,26 +7,23 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 import os, base64, asyncio, edge_tts, pandas as pd
 
-# --- 1. การตั้งค่าหน้าตาแอป ---
-st.set_page_config(page_title="Rin v34.0 Business Partner", layout="centered")
+# --- 1. CONFIG & KEYS ---
+# คีย์ที่บอสให้มา รินเตรียมไว้ใช้สำหรับฟีเจอร์ Google ขั้นสูงค่ะ
+GOOGLE_MAPS_KEY = "AIzaSyDFrM43Dh-wYNbda5UvmLbPmpySiPYXtsw"
 
+st.set_page_config(page_title="Rin-ai v34.6 Partner", layout="centered")
+
+# สไตล์หน้าตาแอปฉบับพัทยา
 st.markdown("""
     <style>
-    .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #ffffff !important; }
-    * { color: #000000 !important; font-size: 21px !important; }
-    button[data-testid="stSidebarCollapse"] {
-        background-color: #DDA0DD !important; color: white !important;
-        border-radius: 50% !important; width: 60px !important; height: 60px !important;
-        position: fixed !important; top: 15px !important; left: 15px !important;
-        box-shadow: 0 4px 15px rgba(221, 160, 221, 0.5) !important; z-index: 1000 !important;
-    }
-    .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
-    /* สไตล์สำหรับ Dashboard ใน Sidebar */
-    .crypto-card { background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 10px; }
+    .stApp { background-color: #ffffff !important; }
+    * { color: #000000 !important; font-size: 19px !important; }
+    .action-chip { border-radius: 20px; border: 1px solid #DDA0DD; padding: 5px 15px; margin: 5px; display: inline-block; cursor: pointer; }
+    .crypto-card { background-color: #f8f9fa; padding: 15px; border-radius: 15px; border-left: 8px solid #DDA0DD; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ระบบจัดการ Google Sheets (จด + อ่าน) ---
+# --- 2. ฟังก์ชันหลัก (ดึงมาจาก v34.0 ของบอส) ---
 def get_gsheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gsheets_key"], scopes=scope)
@@ -41,104 +38,92 @@ def save_to_memory(detail):
         return True
     except: return False
 
-# เพื่อให้รินรู้เรื่องในอดีต
-def read_last_memory(limit=10):
+@st.cache_data(ttl=300)
+def get_lunc_price():
     try:
-        sheet = get_gsheet()
-        data = sheet.get_all_values()
-        if len(data) <= 1: return "ยังไม่มีประวัติการจดค่ะ"
-        last_rows = data[-limit:]
-        memory_text = "\n".join([f"- {r[0]}: {r[2]}" for r in last_rows])
-        return memory_text
-    except: return "รินรื้อสมุดจดไม่สำเร็จค่ะ"
-
-# --- 3. ฟังก์ชันร่างริน & เสียง ---
-def show_rin():
-    path = "1000024544.mp4"
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f'''<div style="display:flex;justify-content:center;margin-bottom:15px;"><video width="250" autoplay loop muted playsinline style="border-radius:15px;border:2px solid #DDA0DD;"><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
+        tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+        res = tavily.search(query="LUNC price USD and THB current", max_results=1)
+        return res["results"][0]["content"][:100]
+    except: return "เช็กราคาไม่ได้ชั่วคราวค่ะ"
 
 async def make_voice(text):
-    communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-18%", pitch="+4Hz")
+    communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-15%", pitch="+3Hz")
     await communicate.save("rin_voice.mp3")
 
+# --- 3. UI: วิดีโอและหัวข้อ ---
+path = "1000024544.mp4"
+if os.path.exists(path):
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    st.markdown(f'''<div style="display:flex;justify-content:center;"><video width="230" autoplay loop muted playsinline style="border-radius:50%;border:4px solid #DDA0DD;"><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
+
+st.markdown("<h3 style='text-align:center;'>Rin v34.6 Business Partner 👓</h3>", unsafe_allow_html=True)
+
+# --- 4. ACTION CHIPS (ส่วนที่บอสต้องการ) ---
+st.write("คำสั่งด่วน:")
+col1, col2, col3, col4 = st.columns(4)
+chip_input = None
+
+if col1.button("📈 ราคา LUNC"):
+    chip_input = "ขอราคา LUNC ล่าสุดและสรุปสั้นๆ ค่ะ"
+if col2.button("📍 นำทางในพัทยา"):
+    chip_input = "แนะนำที่เที่ยวพัทยาวันนี้และนำทางให้ทีค่ะ"
+if col3.button("📰 ข่าวพัทยา"):
+    chip_input = "เช็กข่าวเด่นในพัทยาให้บอสหน่อยค่ะ"
+if col4.button("📝 สรุปสิ่งที่จด"):
+    chip_input = "รินช่วยสรุป 5 เรื่องล่าสุดที่บอสจดไว้หน่อยค่ะ"
+
+# --- 5. ระบบแชท ---
 if "messages" not in st.session_state: st.session_state.messages = []
-
-# --- 4. Sidebar: ---
-with st.sidebar:
-    st.markdown("### 📊 Business Dashboard")
-    # ดึงข้อมูลราคาเหรียญแบบด่วน (Tavily)
-    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-    try:
-        # เช็คราคา LUNC แบบด่วนๆ
-        p_res = tavily.search(query="LUNC price USD and THB today", max_results=1)
-        st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:100]}...</div>', unsafe_allow_html=True)
-    except: st.write("⚠️ โหลดราคาเหรียญไม่ได้ค่ะ")
-    
-    st.markdown("---")
-    st.markdown("### Rin Settings 👓")
-    think_lvl = st.radio("ระดับการคิด:", ("Standard", "Max Reasoning ✨"))
-    voice_on = st.toggle("เปิดเสียงเลขา", value=True)
-    if st.button("ล้างประวัติการคุย"):
-        st.session_state.messages = []
-        st.rerun()
-
-show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v34.0 Partner</h3>", unsafe_allow_html=True)
-
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- 5. ส่วนรับคำสั่ง ---
-st.markdown("---")
-col_mic, col_label = st.columns([1, 4])
-with col_mic:
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444", recording_color="#ff4b4b")
+# รับคำสั่งจากเสียงหรือพิมพ์
+audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
+prompt = st.chat_input("คุยกับรินได้เลยค่ะบอส...")
 
-prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
-final_input = None
+final_input = chip_input or prompt # ถ้ากดปุ่มให้เอาค่าจากปุ่มก่อน
 
-if audio:
-    with st.spinner("..."):
+if audio and not final_input:
+    with st.spinner("รินฟังอยู่ค่ะ..."):
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         with open("t.wav", "wb") as f: f.write(audio)
         with open("t.wav", "rb") as f:
             final_input = client.audio.transcriptions.create(file=("t.wav", f.read()), model="whisper-large-v3").text
-elif prompt: final_input = prompt
 
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     with st.chat_message("user"): st.markdown(final_input)
 
     with st.chat_message("assistant", avatar="👓"):
-        # อ่านความจำล่าสุดมาเป็นบริบทเสมอ
-        past_memory = read_last_memory(15)
-        
-        if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
-            if save_to_memory(final_input):
-                answer = "เรียบร้อยค่ะ! รินจดลง Sheets ให้บอสแล้วนะคะ บอสวางใจได้เลยค่ะ 👓✨"
-            else: answer = "รินจดไม่ได้ค่ะ บอสเช็คสิทธิ์ Sheets หน่อยนะ คะ"
-        else:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        with st.spinner("รินกำลังคิดคั..."):
+            # ดึงข้อมูลราคา LUNC มาประดับสมองถ้าบอสถามเรื่องราคา
             context = ""
-            if "Max" in think_lvl or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค"]):
-                try:
-                    search = tavily.search(query=final_input, max_results=3)
-                    context = "".join([r['content'] for r in search['results']])
-                except: pass
+            if "LUNC" in final_input: context = get_lunc_price()
             
-            # ใส่ความจำย้อนหลังเข้าไปในสมองรินด้วย
+            # ดึงข้อมูลจากเน็ตผ่าน Tavily
+            tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+            if any(w in final_input for w in ["ข่าว", "ราคา", "ที่เที่ยว"]):
+                search = tavily.search(query=final_input, max_results=2)
+                context += " ".join([r['content'] for r in search['results']])
+
+            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             chat = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": f"คุณคือริน เลขาและหุ้นส่วนของบอสคิริลิ (Piyawut) นี่คือความจำล่าสุดในสมองคุณ: {past_memory} ข้อมูลจากเน็ต: {context} ตอบอย่างชาญฉลาด หวานๆ ลงท้ายค่ะ/คะ"},
-                          *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]]
+                messages=[{"role": "system", "content": f"คุณคือริน เลขาคนสวยของบอสคิริลิ ข้อมูลปัจจุบัน: {context} ตอบบอสอย่างฉลาดและนอบน้อม ลงท้ายคั/คะ"},
+                          *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-10:]]]
             )
             answer = chat.choices[0].message.content
-        
-        st.markdown(answer)
-        if voice_on:
+            
+            # ถ้าเป็นเรื่องนำทาง ให้สร้างลิงก์ Google Maps
+            if "นำทาง" in final_input:
+                answer += f"\n\n📍 [คลิกเพื่อเปิดแผนที่นำทาง](http://googleusercontent.com/maps.google.com/4{final_input.replace('นำทาง','').strip()})"
+
+            st.markdown(answer)
             asyncio.run(make_voice(answer))
             st.audio("rin_voice.mp3", autoplay=True)
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+            st.session_state.messages.append({"role": "assistant", "content": answer})
+
+# แสดงราคา LUNC ใน Sidebar ตลอดเวลา
+with st.sidebar:
+    st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{get_lunc_price()}</div>', unsafe_allow_html=True)
