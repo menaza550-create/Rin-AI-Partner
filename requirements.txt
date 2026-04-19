@@ -8,3 +8,4 @@ edge-tts
 pandas
 google-generativeai
 oauth2client
+pyairtable
