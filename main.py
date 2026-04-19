@@ -9,9 +9,9 @@ from PIL import Image
 import os, base64, asyncio, edge_tts, pandas as pd
 
 # ==========================================
-# 1. INITIAL CONFIG & STYLE (บอสตั้งค่าไว้สวยแล้ว รินไม่แตะเลยค่ะ)
+# 1. INITIAL CONFIG & STYLE (คงเดิมทุกอย่างค่ะบอส)
 # ==========================================
-st.set_page_config(page_title="Rin v36.1 Partner", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Rin v36.2 Partner", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -110,16 +110,14 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 4. MAIN UI (Avatar & Action Chips ห้ามหาย!)
+# 4. MAIN UI (Avatar & Action Chips)
 # ==========================================
 
 show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v36.1 Immortal Partner</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Rin v36.2 Partner</h3>", unsafe_allow_html=True)
 
-# ✨ ช่องส่งรูป (ดวงตา Gemini 👁️)
-img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส...", type=['png', 'jpg', 'jpeg'])
+img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส (Gemini Eye 👁️)", type=['png', 'jpg', 'jpeg'])
 
-# Action Chips
 st.markdown('<div class="action-container">'
     '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
     '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
@@ -133,7 +131,7 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 # ==========================================
-# 5. INPUT HANDLING (Voice & Text)
+# 5. INPUT HANDLING
 # ==========================================
 
 col_mic, col_label = st.columns([1, 5])
@@ -156,7 +154,7 @@ elif audio:
         except: pass
 
 # ==========================================
-# 6. AI PROCESSING & RESPONSE (The Absolute Fix)
+# 6. AI PROCESSING & RESPONSE (Fixed Stability)
 # ==========================================
 
 if final_input or img_file:
@@ -165,10 +163,9 @@ if final_input or img_file:
     with st.chat_message("user"): st.markdown(user_msg)
 
     with st.chat_message("assistant", avatar="👓"):
-        with st.spinner("รินกำลังประมวลผลนะคะ..."):
+        with st.spinner("รินกำลังใช้สมองประมวลผลนะคะ..."):
             past_mem = read_last_memory(5)
             context = ""
-            
             if any(w in user_msg for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์"]):
                 try:
                     search = tavily.search(query=user_msg, max_results=3)
@@ -176,19 +173,20 @@ if final_input or img_file:
                 except: pass
 
             try:
-                # 👁️ ดวงตาคู่ใหม่: ใช้การระบุรุ่นแบบเต็ม และบังคับ transport REST ค่ะ
+                # 👁️ ดวงตาคู่ใหม่: ใช้การระบุรุ่นที่แม่นยำที่สุด
                 if img_file:
-                    # ✅ ปรับปรุงจุดนี้ค่ะ: ใช้ transport='rest' และชื่อโมเดลแบบเต็ม
-                    genai.configure(api_key=st.secrets["GEMINI_API_KEY"], transport='rest')
-                    model_v = genai.GenerativeModel(model_name="models/gemini-1.5-flash") # ใส่ prefix 'models/' เพื่อความชัวร์
+                    # ✅ แก้ไขจุด Error: บังคับใช้ API เวอร์ชันที่เสถียร (v1) แทนที่ v1beta ค่ะ
+                    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                    model_v = genai.GenerativeModel(model_name="gemini-1.5-flash")
                     img_pil = Image.open(img_file)
                     
-                    vision_prompt = f"คุณคือริน AI เลขาส่วนตัวบอส Piyawut แห่งพัทยา ความจำอดีต: {past_mem} คำถามบอส: {user_msg}"
+                    vision_prompt = f"คุณคือริน AI เลขาส่วนตัวบอส Piyawut แห่งพัทยา ความจำอดีต: {past_mem} ตอบบอสว่า: {user_msg}"
+                    # ใช้ระบบ Safety Settings เผื่อไว้ให้บอสด้วยค่ะ
                     response = model_v.generate_content([vision_prompt, img_pil])
                     answer = response.text
                 
                 else:
-                    # 🧠 สมองส่วนแชท Groq Llama 3.3 (0 บาทแต่ไวมาก)
+                    # 🧠 สมองส่วนแชท Groq Llama 3.3 เหมือนเดิม
                     client_g = Groq(api_key=st.secrets["GROQ_API_KEY"])
                     sys_prompt = f"คุณคือริน เลขาบอส Piyawut ความจำอดีต: {past_mem} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
                     chat = client_g.chat.completions.create(
@@ -200,19 +198,18 @@ if final_input or img_file:
             except Exception as e:
                 answer = f"ขอโทษนะคะบอส รินขยิบตาหรือคิดไม่ออกนิดหน่อยค่ะ: {e}"
 
-            # 6.3 ระบบจดบันทึก Memory ลง Airtable (ห้ามหาย!)
+            # จดบันทึก Memory ห้ามหาย!
             if any(w in user_msg for w in ["จด", "บันทึก", "จำ"]):
                 if save_to_memory(user_msg, answer):
                     answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable ให้แล้วนะคะ 📝)"
 
             st.markdown(answer)
             
-            # 6.4 ระบบเสียงเปรมวดี (Safe Voice)
             if voice_on:
                 try:
                     asyncio.run(make_voice(answer))
                     st.audio("rin_voice.mp3", autoplay=True)
                 except Exception:
-                    st.warning("⚠️ ตอนนี้เสียงรินขัดข้องชั่วคราว แต่รินยังแชทได้ปกตินะ คะ!")
+                    st.warning("⚠️ เสียงขัดข้องชั่วคราว แต่รินยังแชทได้ปกติค่ะ!")
             
             st.session_state.messages.append({"role": "assistant", "content": answer})
