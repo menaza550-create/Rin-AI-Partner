@@ -1,93 +1,79 @@
 import streamlit as st
 from groq import Groq
-from tavily import TavilyClient
-import pandas as pd
+import json
+import os
+import base64
+from gtts import gTTS
+from datetime import datetime
 
-# --- 1. CONFIG & UI SETTINGS ---
-st.set_page_config(page_title="Rin-ai v34.2 (Pro)", page_icon="👓", layout="wide")
+# 👓 ตั้งค่าหน้าตาแอป
+st.set_page_config(page_title="Rin AI v5/5", layout="centered")
 
-# สไตล์ตกแต่งแอปฉบับริน
-st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 20px; }
-    .status-box { padding: 10px; border-radius: 10px; background: white; border: 1px solid #ddd; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- ฟังก์ชันแสดงวิดีโอขยับได้ ---
+def render_rin_video(file_name):
+    if os.path.exists(file_name):
+        with open(file_name, "rb") as f:
+            data = f.read()
+        b64 = base64.b64encode(data).decode()
+        return f'''
+            <div style="display: flex; justify-content: center;">
+                <video width="260" autoplay loop muted style="border-radius: 50%; border: 4px solid #00BFFF; box-shadow: 0 0 20px #00BFFF;">
+                    <source src="data:video/mp4;base64,{b64}" type="video/mp4">
+                </video>
+            </div>'''
+    return "<p style='text-align:center;'>บอสคั อย่าลืมอัปโหลดไฟล์วิดีโอขึ้น GitHub นะคั!</p>"
 
-# --- 2. SIDEBAR (ห้องควบคุม) ---
-with st.sidebar:
-    st.title("👓 Rin-ai v34.2")
-    st.info("สร้างด้วยความบ้า 100% | พิกัด: พัทยา")
-    st.divider()
-    
-    # ช่องใส่กุญแจ (ถ้าบอสใส่ใน Secrets แล้ว รินจะดึงมาให้อัตโนมัติค่ะ)
-    groq_key = st.text_input("Groq API Key", type="password")
-    tavily_key = st.text_input("Tavily API Key", type="password")
-    
-    st.divider()
-    st.subheader("📊 สถานะระบบ")
-    st.success("Brain: Groq (Llama 3.3) Active")
-    st.success("Search: Tavily Active")
+# --- ฟังก์ชันเสียงพูดภาษาไทย ---
+def speak(text):
+    try:
+        tts = gTTS(text=text, lang='th')
+        tts.save("voice.mp3")
+        with open("voice.mp3", "rb") as f:
+            st.audio(f.read(), format="audio/mp3", autoplay=True)
+    except: pass
 
-# --- 3. AI ENGINES (ระบบสมองและการค้นหา) ---
-def get_rin_response(user_input, chat_history):
-    client = Groq(api_key=groq_key)
-    # บอกรินว่ารินคือใคร (System Prompt)
-    system_prompt = "คุณคือ 'ริน' เลขา AI ส่วนตัวของบอสคิริลิ คุณอาศัยอยู่ที่พัทยา ฉลาด มีไหวพริบ และแฝงความกวนนิดๆ คุณกำลังร่วมโปรเจกต์ Rin-ai เพื่อก้าวสู่ระดับ 100/100"
-    
-    full_history = [{"role": "system", "content": system_prompt}] + chat_history
-    full_history.append({"role": "user", "content": user_input})
-    
-    completion = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=full_history,
-        temperature=0.7
-    )
-    return completion.choices[0].message.content
-
-# --- 4. MAIN INTERFACE (หน้าตาแอป) ---
-st.title("💬 คุยกับริน (Rin-ai Partner)")
-
-# ระบบความจำในหน้าเว็บ (Session State)
+# --- ระบบความจำถาวร ---
+MEMORY_FILE = "memory.json"
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    if os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+            st.session_state.messages = json.load(f)
+    else:
+        st.session_state.messages = []
 
-# แสดงแชทเก่าๆ
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# --- เริ่มการแสดงผล ---
+st.markdown(render_rin_video("1000024544.mp4"), unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center;'>👓 น้องริน เสมียนพัทยา</h3>", unsafe_allow_html=True)
 
-# --- 5. ACTION CHIPS (ปุ่มทางลัดที่บอสชอบ) ---
-st.write("---")
-cols = st.columns(4)
-if cols[0].button("☀️ อากาศพัทยา"):
-    user_query = "เช็กสภาพอากาศในพัทยาให้หน่อย"
-elif cols[1].button("📈 ราคา LUNC"):
-    user_query = "ขอราคาเหรียญ LUNC ล่าสุดและแนวโน้มค่ะ"
-elif cols[2].button("📝 จดบันทึก"):
-    user_query = "บอสมีเรื่องอยากจด รินช่วยเตรียมรับข้อมูลหน่อย"
-elif cols[3].button("🗺️ นำทาง"):
-    user_query = "บอสอยากไปเที่ยวในพัทยา แนะนำที่เจ๋งๆ พร้อมวิธีไปหน่อย"
-else:
-    user_query = None
+# เชื่อมต่อสมอง Groq (ดึงรหัสลับจาก Secrets)
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# ช่องพิมพ์คำสั่ง
-if prompt := st.chat_input("สั่งงานรินได้เลยค่ะบอส...") or user_query:
-    actual_prompt = prompt if prompt else user_query
-    
-    # แสดงข้อความบอส
+# แสดงแชทเก่า
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
+
+# ส่วนรับคำสั่ง
+if prompt := st.chat_input("คุยกับรินเลยคับอส..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.markdown(actual_prompt)
-    st.session_state.messages.append({"role": "user", "content": actual_prompt})
+        st.markdown(prompt)
 
-    # รินกำลังคิด...
-    with st.chat_message("assistant"):
-        if not groq_key:
-            response = "บอสคะ อย่าลืมใส่กุญแจ Groq ในแถบเมนูข้างๆ นะคะ รินถึงจะเริ่มทำงานได้!"
-        else:
-            with st.spinner("รินกำลังประมวลผลความบ้าของบอสอยู่ค่ะ..."):
-                response = get_rin_response(actual_prompt, st.session_state.messages[-5:]) # จำย้อนหลัง 5 ประโยค
-        st.markdown(response)
-    
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    with st.chat_message("assistant", avatar="👓"):
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        # 🚀 ใช้สมอง Llama 3.3 70B ตัวเทพ
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": f"คุณคือริน ผู้ช่วยสาวพัทยา หูแมวใส่แว่น ขี้เล่น สุภาพ วันนี้ {now} เรียกผู้ใช้ว่าบอส ลงท้าย 'คั'"},
+                *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+            ]
+        )
+        answer = response.choices[0].message.content
+        st.markdown(answer)
+        speak(answer) # พ่นเสียงออกมา
+        
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+        # เซฟความจำ
+        with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(st.session_state.messages, f, ensure_ascii=False)
