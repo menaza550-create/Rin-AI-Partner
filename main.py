@@ -1,23 +1,22 @@
 import streamlit as st
-import asyncio, edge_tts, os
+import asyncio, edge_tts, os, base64
 from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
-from groq import Groq # เก็บไว้ใช้แค่แปลงเสียงพูดเป็นข้อความ (Whisper)
-import requests # เพิ่มเข้ามาเตรียมไว้ยิง API ไปหา Dify
+from groq import Groq
 
 # ==========================================
-# 1. INITIAL CONFIG & CYBERPUNK STYLE (ดำ-แดง)
+# 1. INITIAL CONFIG & CYBERPUNK STYLE
 # ==========================================
 st.set_page_config(page_title="The Trio Evolution v1.0", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    /* เปลี่ยนธีมเป็นโทน Cyberpunk มืด-แดง */
+    /* ธีม Cyberpunk มืด-แดง */
     .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #0D0D0D !important; color: #E0E0E0 !important; }
     * { color: #E0E0E0 !important; font-size: 18px; }
     h1, h2, h3 { color: #FF2A2A !important; font-weight: bold; }
     
-    /* ปุ่ม Action Chips โฉมใหม่ */
+    /* ปุ่ม Action Chips */
     .action-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
     .action-chip {
         display: inline-block; padding: 10px 20px; border-radius: 8px;
@@ -35,23 +34,30 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CORE FUNCTIONS (เตรียมเชื่อม Dify & ระบบเสียง)
+# 2. CORE FUNCTIONS (Voice & Backend Mock)
 # ==========================================
 
 async def make_voice(text, speaker="rin"):
-    # ถ้ารินพูดใช้เสียงนึง ถ้ายูกิพูดจะใช้อีกเสียง (รอปรับจูนในอนาคต)
-    voice_model = "th-TH-PremwadeeNeural" if speaker == "rin" else "th-TH-NiwatNeural" # ชั่วคราวรอยูกิ
-    communicate = edge_tts.Communicate(text, voice_model, rate="-10%")
+    if speaker == "rin":
+        # เสียงริน: สุขุม นิ่งๆ แบบเลขา
+        communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-10%", pitch="+0Hz")
+    else:
+        # เสียงยูกิ: ผู้หญิงร่าเริง ปรับเสียงสูงขึ้นและพูดไวขึ้นให้ต่างจากริน
+        communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="+5%", pitch="+15Hz")
+    
     await communicate.save("response_voice.mp3")
 
-# ฟังก์ชันจำลองการส่งข้อมูลไปสมองหลังบ้าน (Dify)
+# ฟังก์ชันจำลองการส่งข้อมูลไปสมองหลังบ้าน (Dify) - รอทำจริงใน Phase 2
 def call_dify_backend(user_input):
-    # ⚠️ โค้ดส่วนนี้คือ Phase 2: เดี๋ยวรินจะพามาสเตอร์เขียนเชื่อม API Dify จริงๆ ทีหลังค่ะ
-    # ตอนนี้จำลองการตอบกลับไปก่อน
-    return {
-        "responder": "yuki", # สลับเป็น "rin" หรือ "yuki" ได้
-        "message": f"มาสเตอร์คะ! (นี่คือระบบจำลอง) ยูกิรับคำสั่ง '{user_input}' แล้วค่ะ กำลังรอเชื่อมต่อสมองหลักใน Dify นะคะ!"
-    }
+    # สลับจำลองว่าใครเป็นคนตอบ (ถ้าอยากเทสเสียงยูกิ ให้แก้บรรทัดล่างเป็น "yuki")
+    responder = "yuki" if "ยูกิ" in user_input else "rin"
+    
+    if responder == "yuki":
+        msg = f"มาสเตอร์คะ! ยูกิรับคำสั่ง '{user_input}' แล้วค่ะ ตอนนี้กำลังวิเคราะห์ความเป็นไปได้แบบ Reality Sync นะคะ!"
+    else:
+        msg = f"รับทราบค่ะมาสเตอร์ รินกำลังนำข้อมูล '{user_input}' ไปประมวลผลเพื่อตรวจสอบความถูกต้องนะคะ"
+        
+    return {"responder": responder, "message": msg}
 
 # ==========================================
 # 3. SIDEBAR & DASHBOARD 
@@ -64,7 +70,7 @@ with st.sidebar:
     try:
         tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
         p_res = tavily.search(query="LUNC price USD today Binance", max_results=1)
-        st.markdown(f'<div class="crypto-card"><b>LUNC Status (Reality Sync):</b><br>{p_res["results"][0]["content"][:120]}...</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:120]}...</div>', unsafe_allow_html=True)
     except: st.write("⚠️ ข้อมูล LUNC ขัดข้องค่ะ")
     
     st.divider()
@@ -89,21 +95,21 @@ st.markdown('<div class="action-container">'
 
 st.write("---")
 
-# แสดงประวัติแชท (ตั้งค่าอวาตาร์ตามคนพูด)
+# แสดงประวัติแชท
 for m in st.session_state.messages:
     avatar_icon = "👓" if m.get("speaker") == "rin" else "🔴" if m.get("speaker") == "yuki" else "🧑‍💻"
     with st.chat_message(m["role"], avatar=avatar_icon): 
         st.markdown(m["content"])
 
 # ==========================================
-# 5. INPUT & DIFY API PROCESSING
+# 5. INPUT & PROCESSING
 # ==========================================
 
 col_mic, col_label = st.columns([1, 5])
 with col_mic:
     audio = audio_recorder(text="", icon_size="2x", neutral_color="#FF2A2A", key="mic_input")
 
-prompt = st.chat_input("สั่งการระบบ The Trio Evolution...")
+prompt = st.chat_input("สั่งการระบบ The Trio Evolution (ลองพิมพ์ 'ยูกิ' เพื่อเทสเสียงน้อง)...")
 final_input = None
 
 if prompt: final_input = prompt
@@ -122,23 +128,25 @@ if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input, "speaker": "master"})
     with st.chat_message("user", avatar="🧑‍💻"): st.markdown(final_input)
 
-    # 2. ส่งข้อมูลไปประมวลผล (ตอนนี้จำลอง Dify อยู่)
-    with st.spinner("ระบบกำลังเชื่อมต่อ..."):
+    # 2. ส่งข้อมูลไปประมวลผล (จำลอง)
+    with st.spinner("ระบบกำลังเชื่อมต่อสมองหลัก..."):
         dify_response = call_dify_backend(final_input)
         responder = dify_response["responder"]
         answer = dify_response["message"]
         
-        # เลือกอวาตาร์ ริน (แว่น) หรือ ยูกิ (วงกลมแดงสไตล์เดียอาน่า)
         avatar_icon = "👓" if responder == "rin" else "🔴"
         
         with st.chat_message("assistant", avatar=avatar_icon):
             st.markdown(answer)
             
+            # ระบบเล่นเสียงแบบซ่อน (ไม่มีแถบเกะกะ)
             if voice_on:
                 try:
                     asyncio.run(make_voice(answer, speaker=responder))
-                    st.audio("response_voice.mp3", autoplay=True)
-                except:
-                    st.warning("⚠️ เสียงขัดข้องค่ะ")
+                    with open("response_voice.mp3", "rb") as f:
+                        audio_b64 = base64.b64encode(f.read()).decode()
+                    st.markdown(f'<audio autoplay><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+                except Exception as e:
+                    st.warning(f"⚠️ เสียงขัดข้องค่ะ: {e}")
             
         st.session_state.messages.append({"role": "assistant", "content": answer, "speaker": responder})
