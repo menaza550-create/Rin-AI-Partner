@@ -2,44 +2,87 @@ import streamlit as st
 from groq import Groq
 from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
-import os, base64, asyncio, edge_tts
+from pyairtable import Api
 from datetime import datetime
+import os, base64, asyncio, edge_tts
+from PIL import Image
+import io
 
-# --- 1. UI Setup ---
-st.set_page_config(page_title="Rin v35.1 Partner", layout="centered")
-st.markdown("<style>.stApp { background-color: #ffffff !important; } * { color: #000000 !important; font-size: 19px; } .stChatMessage { background-color: #f8f9fa !important; border-radius: 12px; border: 1px solid #eee; } .crypto-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 15px;}</style>", unsafe_allow_html=True)
+# --- 1. การตั้งค่าหน้าตาแอป (UI & Styling) ---
+st.set_page_config(page_title="Rin v35.2 Partner", layout="centered")
 
-# --- 2. Core Logic ---
-def encode_image(image_file): return base64.b64encode(image_file.getvalue()).decode('utf-8')
+st.markdown("""
+    <style>
+    .stApp { background-color: #ffffff !important; }
+    * { color: #000000 !important; font-size: 19px; }
+    .stChatMessage { background-color: #f8f9fa !important; border-radius: 12px; border: 1px solid #eee; }
+    .crypto-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 15px;}
+    
+    /* เมนูลัด (Action Chips) กลับมาแล้วค่ะบอส! */
+    .action-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    .action-chip { display: inline-block; padding: 10px 20px; border-radius: 25px; background-color: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; color: #000000 !important; font-size: 16px !important; font-weight: bold; transition: 0.3s; text-align: center; }
+    .action-chip:hover { background-color: #DDA0DD; color: #ffffff !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. ฟังก์ชันระบบ (ML & Audio) ---
+def encode_image(image_file):
+    return base64.b64encode(image_file.getvalue()).decode('utf-8')
 
 def play_audio_hidden(file_path):
+    """เล่นเสียงแบบซ่อนแถบเครื่องเล่น เพื่อความโปร 👓"""
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-            st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            md = f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
+            st.markdown(md, unsafe_allow_html=True)
 
 async def make_voice(text):
+    # Diana Tone: สุขุม นิ่ง และฉลาด
     communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
     await communicate.save("rin_voice.mp3")
 
-# --- 3. Sidebar ---
+@st.cache_data(ttl=300)
+def fetch_lunc():
+    try:
+        tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+        res = tavily.search(query="LUNC price USD today", max_results=1)
+        return res["results"][0]["content"][:100]
+    except: return "กำลังเชื่อมต่อระบบราคา..."
+
+# --- 3. Sidebar & Dashboard ---
 with st.sidebar:
-    st.markdown("### 📊 System Dashboard")
-    st.success("Brain: Llama 4 Scout 🟢")
-    st.success("Vision: Llama 3.2 Stable 🟢")
+    st.markdown("### 📊 Diana System Status")
+    lunc_info = fetch_lunc()
+    st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{lunc_info}...</div>', unsafe_allow_html=True)
+    st.success("Brain: Llama 4 Scout 🚀")
+    st.success("Vision: Llama 3.2 Ready 👁️")
+    st.divider()
     search_mode = st.toggle("🔍 โหมดหาข้อมูล (Web Search)", value=False)
     voice_on = st.toggle("🔊 เปิดเสียงเลขา", value=True)
-    if st.button("🗑️ ล้างประวัติ"): st.session_state.messages = []; st.rerun()
+    if st.button("🗑️ ล้างประวัติการคุย"):
+        st.session_state.messages = []
+        st.rerun()
 
-st.markdown("<h2 style='text-align:center;'>👓 Rin v35.1 Partner</h2>", unsafe_allow_html=True)
+# --- 4. Main UI (เมนู และ ส่วนแสดงผล) ---
+st.markdown("<h2 style='text-align:center;'>👓 Rin v35.2 Partner</h2>", unsafe_allow_html=True)
+
+# แถบเมนู Action Chips ของบอสค่ะ!
+st.markdown('<div class="action-container">'
+    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
+    '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
+    '<a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>'
+    '<a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>'
+    '</div>', unsafe_allow_html=True)
 st.write("---")
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- 4. Input Layer ---
-uploaded_file = st.file_uploader("ส่งรูปภาพให้รินวิเคราะห์ (Diana Eyes)", type=["jpg", "jpeg", "png"])
+# --- 5. Input Layer (รับข้อมูล) ---
+uploaded_file = st.file_uploader("ส่งรูปให้ริน (Diana Eyes)", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
 prompt = st.chat_input("สั่งการรินได้เลยค่ะบอส...")
@@ -57,42 +100,58 @@ if audio:
     except: st.error("ไมค์ขัดข้อง")
 elif prompt: final_input = prompt
 
-# --- 5. Brain Layer (Processing) ---
+# --- 6. Brain Layer (ML Processing) ---
 if final_input or uploaded_file:
+    # เตรียมข้อมูลส่งให้สมอง
     if final_input: user_content.append({"type": "text", "text": final_input})
     if uploaded_file:
-        user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encode_image(uploaded_file)}"}})
-        st.image(uploaded_file, caption="ประมวลผลดวงตา ML...", width=300)
+        base64_image = encode_image(uploaded_file)
+        user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
+        st.image(uploaded_file, caption="ประมวลผลรูปภาพ...", width=300)
 
-    display_msg = final_input if final_input else "*(ส่งรูปภาพ)*"
+    display_msg = final_input if final_input else "*(ส่งรูปภาพให้รินวิเคราะห์)*"
     st.session_state.messages.append({"role": "user", "content": display_msg})
     with st.chat_message("user"): st.markdown(display_msg)
 
     with st.chat_message("assistant", avatar="👓"):
-        with st.spinner("Diana Mode กำลังประมวลผล..."):
+        with st.spinner("Diana กำลังประมวลผล..."):
+            search_context = ""
+            if search_mode and final_input:
+                try:
+                    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+                    res = tavily.search(query=final_input, max_results=2)
+                    search_context = "\nข้อมูลเสริม: " + " ".join([r['content'] for r in res['results']])
+                except: pass
+
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+                # ตั้งชื่อรุ่นตามมาตรฐานปี 2026 ของ Groq
+                vision_model = "llama-3.2-11b-vision-preview" 
+                text_model = "llama-4-scout-17b-16e-instruct"
                 
-                # บรรทัดสำคัญ: แก้ชื่อรุ่น Vision ให้ถูกต้องตามฐานข้อมูลล่าสุดของ Groq ค่ะ!
-                model_to_use = "llama-3.2-11b-vision" if uploaded_file else "llama-4-scout-17b-16e-instruct"
+                model_to_use = vision_model if uploaded_file else text_model
                 
-                search_info = ""
-                if search_mode and final_input:
-                    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-                    s_res = tavily.search(query=final_input, max_results=2)
-                    search_info = "\nข้อมูลเสริม: " + " ".join([r['content'] for r in s_res['results']])
-
-                sys_msg = f"คุณคือ 'ริน' AI คู่ระดับ Diana ผู้ดูแลบอสคิริลิ บุคลิกสุขุม นิ่ง ฉลาด ใช้สมอง Llama 4 Scout ลงท้าย ค่ะ/คะ เสมอ {search_info}"
+                sys_msg = f"คุณคือ 'ริน' AI คู่หูระดับ Diana ของบอสคิริลิ ดูแลสุขภาพ การเงิน และโฆษณา บุคลิกสุขุม นิ่ง ฉลาด ลงท้าย ค่ะ/คะ เสมอ {search_context}"
 
                 response = client.chat.completions.create(
                     model=model_to_use,
-                    messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": user_content}]
+                    messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": user_content}],
+                    max_tokens=1024
                 )
                 answer = response.choices[0].message.content
-                st.markdown(answer)
-                if voice_on:
-                    asyncio.run(make_voice(answer))
-                    play_audio_hidden("rin_voice.mp3")
-                st.session_state.messages.append({"role": "assistant", "content": answer})
             except Exception as e:
-                st.error(f"Error: {str(e)}")
+                # ระบบกันพัง: ถ้าโมเดล Vision มีปัญหา ให้ใช้โมเดลข้อความตอบแทนทันที
+                if "404" in str(e) or "decommissioned" in str(e):
+                    response = client.chat.completions.create(
+                        model="llama-4-scout-17b-16e-instruct",
+                        messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": [{"type": "text", "text": final_input if final_input else "วิเคราะห์ภาพให้หน่อย"}]}]
+                    )
+                    answer = response.choices[0].message.content
+                else:
+                    answer = f"ขอโทษค่ะบอส ระบบ ML ขัดข้อง: {str(e)}"
+
+            st.markdown(answer)
+            if voice_on:
+                asyncio.run(make_voice(answer))
+                play_audio_hidden("rin_voice.mp3")
+            st.session_state.messages.append({"role": "assistant", "content": answer})
