@@ -14,28 +14,31 @@ st.markdown("""
     .stApp { background-color: #ffffff !important; }
     * { color: #000000 !important; font-size: 19px; }
     .stChatMessage { background-color: #f8f9fa !important; border-radius: 12px; border: 1px solid #eee; }
-    .crypto-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #DDA0DD; }
+    .crypto-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 15px;}
+    
+    /* กู้คืนเมนูลัดของบอสกลับมาแล้วค่ะ! */
+    .action-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    .action-chip { display: inline-block; padding: 10px 20px; border-radius: 25px; background-color: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; color: #000000 !important; font-size: 16px !important; font-weight: bold; transition: 0.3s; text-align: center; }
+    .action-chip:hover { background-color: #DDA0DD; color: #ffffff !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. ฟังก์ชันช่วยเพิ่มความเร็ว (Caching) ---
-@st.cache_data(ttl=300) # จำราคาไว้ 5 นาที ไม่ต้องโหลดใหม่ทุกรอบ
+@st.cache_data(ttl=300)
 def fetch_lunc_price():
     try:
         tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
         res = tavily.search(query="LUNC price USD today", max_results=1)
         return res["results"][0]["content"][:120]
-    except:
-        return "ไม่สามารถดึงข้อมูลราคาได้ในขณะนี้ค่ะ"
+    except: return "ไม่สามารถดึงข้อมูลราคาได้ค่ะ"
 
 def get_airtable_table():
     try:
         api = Api(st.secrets["AIRTABLE_TOKEN"])
         return api.table(st.secrets["AIRTABLE_BASE_ID"], st.secrets["AIRTABLE_TABLE_NAME"])
-    except:
-        return None
+    except: return None
 
-@st.cache_data(ttl=60) # จำความจำล่าสุดไว้ 1 นาที
+@st.cache_data(ttl=60)
 def read_last_memory(limit=5):
     try:
         table = get_airtable_table()
@@ -57,23 +60,31 @@ with st.sidebar:
     
     st.divider()
     st.markdown("### Rin Settings 👓")
-    voice_on = st.toggle("เปิดเสียงเลขา", value=True)
-    if st.button("ล้างประวัติการคุย"):
+    # กู้คืนสวิตช์เปิดโหมดค้นหาข้อมูล
+    search_mode = st.toggle("🔍 โหมดหาข้อมูล (Web Search)", value=False)
+    voice_on = st.toggle("🔊 เปิดเสียงเลขา", value=True)
+    
+    if st.button("🗑️ ล้างประวัติการคุย"):
         st.session_state.messages = []
         st.rerun()
 
 st.markdown("<h2 style='text-align:center;'>👓 Rin v34.8 Partner</h2>", unsafe_allow_html=True)
+
+# --- 4. ACTION CHIPS (เมนูลัด) ---
+st.markdown('<div class="action-container">'
+    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
+    '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
+    '<a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>'
+    '<a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>'
+    '</div>', unsafe_allow_html=True)
 st.write("---")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+if "messages" not in st.session_state: st.session_state.messages = []
 
-# แสดงแชท
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- 4. การประมวลผลคำสั่ง ---
+# --- 5. การประมวลผลคำสั่ง ---
 col_mic, col_input = st.columns([1, 6])
 with col_mic:
     audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
@@ -95,21 +106,33 @@ elif prompt:
 
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
-    with st.chat_message("user"):
-        st.markdown(final_input)
+    with st.chat_message("user"): st.markdown(final_input)
 
     with st.chat_message("assistant", avatar="👓"):
-        with st.spinner("รินกำลังคิด..."):
+        with st.spinner("รินกำลังประมวลผล..."):
             memory = read_last_memory(3)
+            search_context = ""
+            
+            # --- กู้คืนระบบหาข้อมูล (Tavily) ---
+            if search_mode or any(w in final_input for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์", "หาข้อมูล"]):
+                with st.spinner("รินกำลังค้นหาข้อมูลจากอินเทอร์เน็ตค่ะ... 🌐"):
+                    try:
+                        tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+                        search_result = tavily.search(query=final_input, max_results=3)
+                        search_context = "ข้อมูลจากอินเทอร์เน็ตล่าสุด:\n" + "\n".join([r['content'] for r in search_result['results']])
+                    except:
+                        search_context = "(รินพยายามต่อเน็ตแต่สัญญาณขัดข้องค่ะบอส)"
+
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 sys_msg = f"""คุณคือ 'ริน' เลขาส่วนตัวของบอสคิริลิ (Piyawut) แห่งพัทยา
                 หน้าที่: ดูแลสุขภาพ, บิลค่าน้ำไฟ, ค่าใช้จ่าย และตรวจสอบความถูกต้อง
                 บุคลิก: ฉลาด อบอุ่น สุภาพ ลงท้าย 'ค่ะ/คะ' เสมอ
-                ความจำล่าสุด: {memory}"""
+                ความจำล่าสุด: {memory}
+                {search_context}"""
                 
                 chat = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile", # ใช้สมองตัวท็อปสุดที่เสถียรของ Groq 
+                    model="llama-3.3-70b-versatile", # ใช้สมองตัวท็อป
                     messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-5:]
                 )
                 answer = chat.choices[0].message.content
@@ -124,9 +147,8 @@ if final_input:
             
             st.session_state.messages.append({"role": "assistant", "content": answer})
 
-            # ระบบบันทึกอัตโนมัติถ้าบอสสั่ง
             if any(w in final_input for w in ["จด", "บันทึก", "จำ"]):
                 table = get_airtable_table()
                 if table:
                     table.create({"Date": datetime.now().isoformat(), "User": final_input, "Rin": answer})
-                    st.toast("จดลง Airtable แล้วค่ะ 📝")
+                    st.toast("จดลงสมุดเรียบร้อยแล้วค่ะบอส! 📝")
