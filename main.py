@@ -7,7 +7,7 @@ from groq import Groq
 # ==========================================
 # 1. INITIAL CONFIG & CYBERPUNK STYLE
 # ==========================================
-st.set_page_config(page_title="The Trio Evolution v1.0", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="The Trio Evolution v1.1", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -16,11 +16,11 @@ st.markdown("""
     * { color: #E0E0E0 !important; font-size: 18px; }
     h1, h2, h3 { color: #FF2A2A !important; font-weight: bold; }
     
-    /* ปุ่ม Action Chips */
+    /* ปุ่ม Action Chips โฉมใหม่ 4 ปุ่ม */
     .action-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
     .action-chip {
         display: inline-block; padding: 10px 20px; border-radius: 8px;
-        background-color: #1A1A1A; border: 1px solid #FF2A2A; text-decoration: none;
+        background-color: #1A1A1A; border: 1px solid #FF2A2A; text-decoration: none !important; /* บังคับไม่มีเส้นใต้ */
         color: #FF2A2A !important; font-size: 16px !important; transition: 0.3s; text-align: center;
     }
     .action-chip:hover { background-color: #FF2A2A; color: #000000 !important; box-shadow: 0 0 10px #FF2A2A; }
@@ -31,10 +31,10 @@ st.markdown("""
     /* Dashboard LUNC */
     .crypto-card { background-color: #1A1A1A; padding: 15px; border-radius: 8px; border-left: 5px solid #FF2A2A; margin-bottom: 10px; }
     
-    /* 🔥 แก้ไขช่องพิมพ์แชทให้เป็นสีดำ และตัวหนังสือสีขาว 🔥 */
+    /* แก้ไขช่องพิมพ์แชทให้เป็นสีดำ และตัวหนังสือสีขาว */
     [data-testid="stChatInput"] { background-color: #151515 !important; border: 1px solid #FF2A2A !important; border-radius: 10px !important; }
     [data-testid="stChatInput"] textarea { background-color: #151515 !important; color: #FFFFFF !important; font-size: 18px !important; }
-    [data-testid="stChatInput"] svg { fill: #FF2A2A !important; } /* เปลี่ยนสีไอคอนปุ่มส่งข้อความ */
+    [data-testid="stChatInput"] svg { fill: #FF2A2A !important; } 
     </style>
     """, unsafe_allow_html=True)
 
@@ -44,24 +44,18 @@ st.markdown("""
 
 async def make_voice(text, speaker="rin"):
     if speaker == "rin":
-        # เสียงริน: สุขุม นิ่งๆ แบบเลขา
         communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-10%", pitch="+0Hz")
     else:
-        # เสียงยูกิ: ผู้หญิงร่าเริง ปรับเสียงสูงขึ้นและพูดไวขึ้นให้ต่างจากริน
         communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="+5%", pitch="+15Hz")
     
     await communicate.save("response_voice.mp3")
 
-# ฟังก์ชันจำลองการส่งข้อมูลไปสมองหลังบ้าน (Dify) - รอทำจริงใน Phase 2
 def call_dify_backend(user_input):
-    # สลับจำลองว่าใครเป็นคนตอบ (ถ้าอยากเทสเสียงยูกิ ให้พิมพ์คำว่า "ยูกิ")
     responder = "yuki" if "ยูกิ" in user_input else "rin"
-    
     if responder == "yuki":
         msg = f"มาสเตอร์คะ! ยูกิรับคำสั่ง '{user_input}' แล้วค่ะ ตอนนี้กำลังวิเคราะห์ความเป็นไปได้แบบ Reality Sync นะคะ!"
     else:
         msg = f"รับทราบค่ะมาสเตอร์ รินกำลังนำข้อมูล '{user_input}' ไปประมวลผลเพื่อตรวจสอบความถูกต้องนะคะ"
-        
     return {"responder": responder, "message": msg}
 
 # ==========================================
@@ -86,21 +80,22 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 4. MAIN UI
+# 4. MAIN UI & ACTION CHIPS
 # ==========================================
 
 st.markdown("<h3 style='text-align:center;'>THE TRIO EVOLUTION 🔴👓</h3>", unsafe_allow_html=True)
 st.caption("<p style='text-align:center; color:#888888;'>Agent 1: Yuki (Diana Mode) | Agent 2: Rin (Audit Mode)</p>", unsafe_allow_html=True)
 
+# อัปเดตปุ่ม 4 ปุ่ม ตามคำสั่งบอส
 st.markdown('<div class="action-container">'
-    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 ระบบนำทาง (แกร็บ)</a>'
-    '<a href="https://adsmanager.facebook.com/" target="_blank" class="action-chip">📈 Meta Ads</a>'
+    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 ระบบนำทาง</a>'
     '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
+    '<a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>'
+    '<a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>'
     '</div>', unsafe_allow_html=True)
 
 st.write("---")
 
-# แสดงประวัติแชท
 for m in st.session_state.messages:
     avatar_icon = "👓" if m.get("speaker") == "rin" else "🔴" if m.get("speaker") == "yuki" else "🧑‍💻"
     with st.chat_message(m["role"], avatar=avatar_icon): 
@@ -112,7 +107,8 @@ for m in st.session_state.messages:
 
 col_mic, col_label = st.columns([1, 5])
 with col_mic:
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#FF2A2A", key="mic_input")
+    # เปลี่ยน Key เพื่อล้าง Error เก่าทิ้ง
+    audio = audio_recorder(text="", icon_size="2x", neutral_color="#FF2A2A", key="mic_input_v2")
 
 prompt = st.chat_input("สั่งการระบบ The Trio Evolution (พิมพ์ 'ยูกิ' เพื่อเทสเสียงน้อง)...")
 final_input = None
@@ -129,11 +125,9 @@ elif audio:
         except: pass
 
 if final_input:
-    # 1. แสดงข้อความมาสเตอร์
     st.session_state.messages.append({"role": "user", "content": final_input, "speaker": "master"})
     with st.chat_message("user", avatar="🧑‍💻"): st.markdown(final_input)
 
-    # 2. ส่งข้อมูลไปประมวลผล (จำลอง)
     with st.spinner("ระบบกำลังเชื่อมต่อสมองหลัก..."):
         dify_response = call_dify_backend(final_input)
         responder = dify_response["responder"]
@@ -144,13 +138,14 @@ if final_input:
         with st.chat_message("assistant", avatar=avatar_icon):
             st.markdown(answer)
             
-            # ระบบเล่นเสียงแบบซ่อน (ไม่มีแถบเกะกะแน่นอน) เติม display:none
+            # เล่นเสียงแบบซ่อน (ใช้ parameter hidden ของ HTML5)
             if voice_on:
                 try:
                     asyncio.run(make_voice(answer, speaker=responder))
                     with open("response_voice.mp3", "rb") as f:
                         audio_b64 = base64.b64encode(f.read()).decode()
-                    st.markdown(f'<audio autoplay style="display:none;"><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+                    # ใช้คำสั่ง hidden ปิดตายแถบเสียง
+                    st.markdown(f'<audio autoplay hidden><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
                 except Exception as e:
                     st.warning(f"⚠️ เสียงขัดข้องค่ะ: {e}")
             
