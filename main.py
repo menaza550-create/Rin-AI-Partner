@@ -109,13 +109,10 @@ if final_input:
                 ความจำล่าสุด: {memory}"""
                 
                 chat = client.chat.completions.create(
-                    model="deepseek-r1-distill-llama-70b", # อัปเกรดเป็น DeepSeek R1 เรียบร้อย
+                    model="llama-3.3-70b-versatile", # ใช้สมองตัวท็อปสุดที่เสถียรของ Groq 
                     messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-5:]
                 )
                 answer = chat.choices[0].message.content
-                # ลบส่วนความคิดภายในของ R1 ออกเพื่อความสะอาด (ถ้ามี)
-                if "</thought>" in answer:
-                    answer = answer.split("</thought>")[-1].strip()
             except Exception as e:
                 answer = f"ขอโทษค่ะบอส สมองรินล้านิดหน่อย: {str(e)}"
 
