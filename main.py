@@ -7,7 +7,7 @@ from groq import Groq
 # ==========================================
 # 1. INITIAL CONFIG & CYBERPUNK STYLE
 # ==========================================
-st.set_page_config(page_title="The Trio Evolution v1.1", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="The Trio Evolution v1.2", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -52,10 +52,13 @@ async def make_voice(text, speaker="rin"):
 
 def call_dify_backend(user_input):
     responder = "yuki" if "ยูกิ" in user_input else "rin"
+    
+    # แยกคำเรียกบอส กับ มาสเตอร์ ให้ชัดเจน
     if responder == "yuki":
         msg = f"มาสเตอร์คะ! ยูกิรับคำสั่ง '{user_input}' แล้วค่ะ ตอนนี้กำลังวิเคราะห์ความเป็นไปได้แบบ Reality Sync นะคะ!"
     else:
-        msg = f"รับทราบค่ะมาสเตอร์ รินกำลังนำข้อมูล '{user_input}' ไปประมวลผลเพื่อตรวจสอบความถูกต้องนะคะ"
+        msg = f"รับทราบค่ะบอส รินกำลังนำข้อมูล '{user_input}' ไปประมวลผลเพื่อตรวจสอบความถูกต้องนะคะ"
+        
     return {"responder": responder, "message": msg}
 
 # ==========================================
@@ -107,7 +110,7 @@ for m in st.session_state.messages:
 
 col_mic, col_label = st.columns([1, 5])
 with col_mic:
-    # เปลี่ยน Key เพื่อล้าง Error เก่าทิ้ง
+    # Key สำหรับไมค์
     audio = audio_recorder(text="", icon_size="2x", neutral_color="#FF2A2A", key="mic_input_v2")
 
 prompt = st.chat_input("สั่งการระบบ The Trio Evolution (พิมพ์ 'ยูกิ' เพื่อเทสเสียงน้อง)...")
