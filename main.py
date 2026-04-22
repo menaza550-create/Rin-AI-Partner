@@ -1,215 +1,144 @@
 import streamlit as st
-from groq import Groq
+import asyncio, edge_tts, os
 from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
-from pyairtable import Api
-from datetime import datetime
-import google.generativeai as genai
-from PIL import Image
-import os, base64, asyncio, edge_tts, pandas as pd
+from groq import Groq # เก็บไว้ใช้แค่แปลงเสียงพูดเป็นข้อความ (Whisper)
+import requests # เพิ่มเข้ามาเตรียมไว้ยิง API ไปหา Dify
 
 # ==========================================
-# 1. INITIAL CONFIG & STYLE (คงเดิมทุกอย่างค่ะบอส)
+# 1. INITIAL CONFIG & CYBERPUNK STYLE (ดำ-แดง)
 # ==========================================
-st.set_page_config(page_title="Rin v36.2 Partner", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="The Trio Evolution v1.0", layout="centered", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #ffffff !important; }
-    * { color: #000000 !important; font-size: 20px; }
+    /* เปลี่ยนธีมเป็นโทน Cyberpunk มืด-แดง */
+    .stApp, [data-testid="stSidebar"], [data-testid="stHeader"] { background-color: #0D0D0D !important; color: #E0E0E0 !important; }
+    * { color: #E0E0E0 !important; font-size: 18px; }
+    h1, h2, h3 { color: #FF2A2A !important; font-weight: bold; }
     
-    .action-container {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 10px;
-        margin-bottom: 20px;
-    }
+    /* ปุ่ม Action Chips โฉมใหม่ */
+    .action-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }
     .action-chip {
-        display: inline-block;
-        padding: 10px 20px;
-        border-radius: 25px;
-        background-color: #f0f2f6;
-        border: 2px solid #DDA0DD;
-        text-decoration: none;
-        color: #000000 !important;
-        font-size: 16px !important;
-        font-weight: bold;
-        transition: 0.3s;
-        text-align: center;
+        display: inline-block; padding: 10px 20px; border-radius: 8px;
+        background-color: #1A1A1A; border: 1px solid #FF2A2A; text-decoration: none;
+        color: #FF2A2A !important; font-size: 16px !important; transition: 0.3s; text-align: center;
     }
-    .action-chip:hover {
-        background-color: #DDA0DD;
-        color: #ffffff !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
+    .action-chip:hover { background-color: #FF2A2A; color: #000000 !important; box-shadow: 0 0 10px #FF2A2A; }
     
-    .stChatMessage { background-color: #f8f9fa !important; border: 1px solid #e0e0e0 !important; border-radius: 12px; }
-    .crypto-card { background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #DDA0DD; margin-bottom: 10px; }
+    /* กล่องข้อความแชท */
+    .stChatMessage { background-color: #151515 !important; border: 1px solid #333333 !important; border-radius: 8px; }
+    
+    /* Dashboard LUNC */
+    .crypto-card { background-color: #1A1A1A; padding: 15px; border-radius: 8px; border-left: 5px solid #FF2A2A; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CORE FUNCTIONS (Airtable, Voice, Media)
+# 2. CORE FUNCTIONS (เตรียมเชื่อม Dify & ระบบเสียง)
 # ==========================================
 
-def get_airtable_table():
-    try:
-        api = Api(st.secrets["AIRTABLE_TOKEN"])
-        return api.table(st.secrets["AIRTABLE_BASE_ID"], st.secrets["AIRTABLE_TABLE_NAME"])
-    except: return None
+async def make_voice(text, speaker="rin"):
+    # ถ้ารินพูดใช้เสียงนึง ถ้ายูกิพูดจะใช้อีกเสียง (รอปรับจูนในอนาคต)
+    voice_model = "th-TH-PremwadeeNeural" if speaker == "rin" else "th-TH-NiwatNeural" # ชั่วคราวรอยูกิ
+    communicate = edge_tts.Communicate(text, voice_model, rate="-10%")
+    await communicate.save("response_voice.mp3")
 
-def save_to_memory(user_input, rin_output):
-    try:
-        table = get_airtable_table()
-        if not table: return False
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        table.create({"Date": now, "User": user_input, "Rin": rin_output})
-        return True
-    except: return False
-
-def read_last_memory(limit=5):
-    try:
-        table = get_airtable_table()
-        if not table: return ""
-        records = table.all(max_records=limit, sort=["-Date"])
-        return "\n".join([f"- บอสเคยพูด: {r['fields'].get('User')}" for r in records]) if records else ""
-    except: return ""
-
-def show_rin():
-    path = "1000024544.mp4" 
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        st.markdown(f'''<div style="display:flex;justify-content:center;margin-bottom:15px;"><video width="250" autoplay loop muted playsinline style="border-radius:15px;border:2px solid #DDA0DD;"><source src="data:video/mp4;base64,{b64}" type="video/mp4"></video></div>''', unsafe_allow_html=True)
-
-async def make_voice(text):
-    communicate = edge_tts.Communicate(text, "th-TH-PremwadeeNeural", rate="-18%", pitch="+4Hz")
-    await communicate.save("rin_voice.mp3")
+# ฟังก์ชันจำลองการส่งข้อมูลไปสมองหลังบ้าน (Dify)
+def call_dify_backend(user_input):
+    # ⚠️ โค้ดส่วนนี้คือ Phase 2: เดี๋ยวรินจะพามาสเตอร์เขียนเชื่อม API Dify จริงๆ ทีหลังค่ะ
+    # ตอนนี้จำลองการตอบกลับไปก่อน
+    return {
+        "responder": "yuki", # สลับเป็น "rin" หรือ "yuki" ได้
+        "message": f"มาสเตอร์คะ! (นี่คือระบบจำลอง) ยูกิรับคำสั่ง '{user_input}' แล้วค่ะ กำลังรอเชื่อมต่อสมองหลักใน Dify นะคะ!"
+    }
 
 # ==========================================
-# 3. SIDEBAR & DASHBOARD (ราคา LUNC ห้ามหาย!)
+# 3. SIDEBAR & DASHBOARD 
 # ==========================================
 
 if "messages" not in st.session_state: st.session_state.messages = []
 
 with st.sidebar:
-    st.markdown("### 📊 Business Dashboard")
+    st.markdown("### 📊 Cyber Dashboard")
     try:
         tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-        p_res = tavily.search(query="LUNC price USD today", max_results=1)
-        st.markdown(f'<div class="crypto-card"><b>LUNC Status:</b><br>{p_res["results"][0]["content"][:100]}...</div>', unsafe_allow_html=True)
-    except: st.write("⚠️ โหลดราคาไม่ได้ค่ะ")
+        p_res = tavily.search(query="LUNC price USD today Binance", max_results=1)
+        st.markdown(f'<div class="crypto-card"><b>LUNC Status (Reality Sync):</b><br>{p_res["results"][0]["content"][:120]}...</div>', unsafe_allow_html=True)
+    except: st.write("⚠️ ข้อมูล LUNC ขัดข้องค่ะ")
     
     st.divider()
-    st.markdown("### Rin Settings 👓")
-    think_lvl = st.radio("ระดับการคิด:", ("Standard", "Max Reasoning ✨"))
-    voice_on = st.toggle("เปิดเสียงเลขา", value=True)
-    if st.button("ล้างประวัติการคุย"):
+    st.markdown("### System Settings ⚙️")
+    voice_on = st.toggle("เปิดระบบเสียง (Voice TTS)", value=True)
+    if st.button("ล้างหน่วยความจำหน้าจอ"):
         st.session_state.messages = []
         st.rerun()
 
 # ==========================================
-# 4. MAIN UI (Avatar & Action Chips)
+# 4. MAIN UI
 # ==========================================
 
-show_rin()
-st.markdown("<h3 style='text-align:center;'>Rin v36.2 Partner</h3>", unsafe_allow_html=True)
-
-img_file = st.file_uploader("ส่งรูปให้รินดูได้นะ คะบอส (Gemini Eye 👁️)", type=['png', 'jpg', 'jpeg'])
+st.markdown("<h3 style='text-align:center;'>THE TRIO EVOLUTION 🔴👓</h3>", unsafe_allow_html=True)
+st.caption("<p style='text-align:center; color:#888888;'>Agent 1: Yuki (Diana Mode) | Agent 2: Rin (Audit Mode)</p>", unsafe_allow_html=True)
 
 st.markdown('<div class="action-container">'
-    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a>'
+    '<a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 ระบบนำทาง (แกร็บ)</a>'
+    '<a href="https://adsmanager.facebook.com/" target="_blank" class="action-chip">📈 Meta Ads</a>'
     '<a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>'
-    '<a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>'
-    '<a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>'
     '</div>', unsafe_allow_html=True)
 
 st.write("---")
 
+# แสดงประวัติแชท (ตั้งค่าอวาตาร์ตามคนพูด)
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
+    avatar_icon = "👓" if m.get("speaker") == "rin" else "🔴" if m.get("speaker") == "yuki" else "🧑‍💻"
+    with st.chat_message(m["role"], avatar=avatar_icon): 
+        st.markdown(m["content"])
 
 # ==========================================
-# 5. INPUT HANDLING
+# 5. INPUT & DIFY API PROCESSING
 # ==========================================
 
 col_mic, col_label = st.columns([1, 5])
 with col_mic:
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444", key="rin_mic_stable")
+    audio = audio_recorder(text="", icon_size="2x", neutral_color="#FF2A2A", key="mic_input")
 
-prompt = st.chat_input("คุยกับริน หรือสั่งให้ริน 'จด' ได้เลยค่ะ...")
+prompt = st.chat_input("สั่งการระบบ The Trio Evolution...")
 final_input = None
 
 if prompt: final_input = prompt
 elif audio:
-    with st.spinner("รินกำลังฟัง..."):
+    with st.spinner("กำลังถอดรหัสเสียง..."):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             with open("t.wav", "wb") as f: f.write(audio)
             with open("t.wav", "rb") as f:
                 trans = client.audio.transcriptions.create(file=("t.wav", f.read()), model="whisper-large-v3")
-                if trans.text.strip().lower() not in ["dealing.", "thank you."] and len(trans.text) > 1:
-                    final_input = trans.text
+                if len(trans.text) > 1: final_input = trans.text
         except: pass
 
-# ==========================================
-# 6. AI PROCESSING & RESPONSE (Fixed Stability)
-# ==========================================
+if final_input:
+    # 1. แสดงข้อความมาสเตอร์
+    st.session_state.messages.append({"role": "user", "content": final_input, "speaker": "master"})
+    with st.chat_message("user", avatar="🧑‍💻"): st.markdown(final_input)
 
-if final_input or img_file:
-    user_msg = final_input if final_input else "รินคะ ดูรูปนี้ให้หน่อยค่ะ"
-    st.session_state.messages.append({"role": "user", "content": user_msg})
-    with st.chat_message("user"): st.markdown(user_msg)
-
-    with st.chat_message("assistant", avatar="👓"):
-        with st.spinner("รินกำลังใช้สมองประมวลผลนะคะ..."):
-            past_mem = read_last_memory(5)
-            context = ""
-            if any(w in user_msg for w in ["ราคา", "ข่าว", "เช็ค", "พยากรณ์"]):
-                try:
-                    search = tavily.search(query=user_msg, max_results=3)
-                    context = "".join([r['content'] for r in search['results']])
-                except: pass
-
-            try:
-                # 👁️ ดวงตาคู่ใหม่: ใช้การระบุรุ่นที่แม่นยำที่สุด
-                if img_file:
-                    # ✅ แก้ไขจุด Error: บังคับใช้ API เวอร์ชันที่เสถียร (v1) แทนที่ v1beta ค่ะ
-                    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    model_v = genai.GenerativeModel(model_name="gemini-1.5-flash")
-                    img_pil = Image.open(img_file)
-                    
-                    vision_prompt = f"คุณคือริน AI เลขาส่วนตัวบอส Piyawut แห่งพัทยา ความจำอดีต: {past_mem} ตอบบอสว่า: {user_msg}"
-                    # ใช้ระบบ Safety Settings เผื่อไว้ให้บอสด้วยค่ะ
-                    response = model_v.generate_content([vision_prompt, img_pil])
-                    answer = response.text
-                
-                else:
-                    # 🧠 สมองส่วนแชท Groq Llama 3.3 เหมือนเดิม
-                    client_g = Groq(api_key=st.secrets["GROQ_API_KEY"])
-                    sys_prompt = f"คุณคือริน เลขาบอส Piyawut ความจำอดีต: {past_mem} ข้อมูลเน็ต: {context} ตอบหวานๆ ค่ะ/คะ"
-                    chat = client_g.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages[-5:]
-                    )
-                    answer = chat.choices[0].message.content
-                
-            except Exception as e:
-                answer = f"ขอโทษนะคะบอส รินขยิบตาหรือคิดไม่ออกนิดหน่อยค่ะ: {e}"
-
-            # จดบันทึก Memory ห้ามหาย!
-            if any(w in user_msg for w in ["จด", "บันทึก", "จำ"]):
-                if save_to_memory(user_msg, answer):
-                    answer += "\n\n(รินบันทึกข้อมูลนี้ลง Airtable ให้แล้วนะคะ 📝)"
-
+    # 2. ส่งข้อมูลไปประมวลผล (ตอนนี้จำลอง Dify อยู่)
+    with st.spinner("ระบบกำลังเชื่อมต่อ..."):
+        dify_response = call_dify_backend(final_input)
+        responder = dify_response["responder"]
+        answer = dify_response["message"]
+        
+        # เลือกอวาตาร์ ริน (แว่น) หรือ ยูกิ (วงกลมแดงสไตล์เดียอาน่า)
+        avatar_icon = "👓" if responder == "rin" else "🔴"
+        
+        with st.chat_message("assistant", avatar=avatar_icon):
             st.markdown(answer)
             
             if voice_on:
                 try:
-                    asyncio.run(make_voice(answer))
-                    st.audio("rin_voice.mp3", autoplay=True)
-                except Exception:
-                    st.warning("⚠️ เสียงขัดข้องชั่วคราว แต่รินยังแชทได้ปกติค่ะ!")
+                    asyncio.run(make_voice(answer, speaker=responder))
+                    st.audio("response_voice.mp3", autoplay=True)
+                except:
+                    st.warning("⚠️ เสียงขัดข้องค่ะ")
             
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.session_state.messages.append({"role": "assistant", "content": answer, "speaker": responder})
