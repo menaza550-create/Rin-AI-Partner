@@ -7,12 +7,11 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, re
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.13 Vision Instruct", layout="centered")
+st.set_page_config(page_title="Rin v38.14 Auto-Vision", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
 def get_avatar():
-    # เช็กว่ามีรูปรินไหม ถ้าไม่มีใช้ไอคอนแว่นแทนค่ะ
     return RIN_AVATAR_PATH if os.path.exists(RIN_AVATAR_PATH) else "👓"
 
 st.markdown(f"""
@@ -62,7 +61,7 @@ with st.sidebar:
         st.rerun()
 
 # --- 4. Main Menu & AI Selector ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.13 Vision</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.14 Lightning</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
 
 ai_mode = st.radio("เลือกระดับสมองของริน:", ["⚡ รวดเร็ว (Fast)", "🧠 วิเคราะห์ลึก (Ultra)"], index=0)
@@ -81,7 +80,7 @@ for m in st.session_state.messages:
 uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินวิเคราะห์ (ถ้ามี)", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
-user_input = st.chat_input("คุยกับริน หรือส่งรูปให้ดูได้เลยค่ะบอส...")
+user_input = st.chat_input("คุยกับริน หรือส่งรูปภาพให้ดูได้เลยค่ะบอส...")
 
 if audio:
     try:
@@ -92,7 +91,7 @@ if audio:
             user_input = ts.text
     except: st.error("ระบบรับเสียงขัดข้อง")
 
-# --- 6. Brain Processing ---
+# --- 6. Brain Processing (Auto-Adaptive Logic) ---
 if user_input:
     user_msg_data = {"role": "user", "content": user_input}
     img_base64 = None
@@ -101,13 +100,14 @@ if user_input:
         user_msg_data["image"] = img_bytes
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
     st.session_state.messages.append(user_msg_data)
+    
     with st.chat_message("user"):
         if uploaded_file: st.image(uploaded_file, width=300)
         st.markdown(user_input)
 
     with st.chat_message("assistant", avatar=get_avatar()):
         response_placeholder = st.empty()
-        with st.spinner("รินกำลังประมวลผลข้อมูล..."):
+        with st.spinner("รินกำลังใช้ดวงตาสแกนข้อมูล..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 long_term_ctx = get_semantic_memory(user_input)
@@ -121,36 +121,48 @@ if user_input:
 
                 sys_msg = f"คุณคือ 'ริน' AI คู่หูบอสคิริลิ ความจำ: {long_term_ctx} {search_ctx} ตอบสุขุม ฉลาด ภักดี ลงท้าย ค่ะ/คะ"
                 messages_for_api = [{"role":"system","content":sys_msg}]
-                
-                # ดึงบริบทแชทเก่ามาด้วย 3 รอบล่าสุด
                 for m in st.session_state.messages[-4:-1]:
                     messages_for_api.append({"role": m["role"], "content": m["content"]})
 
-                # 🔴 ส่วนการเลือกโมเดล (Instruct Version)
+                # 🔴 ระบบสลับสมองอัตโนมัติ (Multi-Model Fallback)
+                stream_response = None
+                
                 if uploaded_file:
-                    # ใช้รุ่นที่บอสสั่งมาค่ะ
-                    active_model = "llama-3.2-11b-vision-instruct" 
-                    messages_for_api.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": user_input},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}}
-                        ]
-                    })
+                    # รายชื่อสมอง Vision ที่รินจะสุ่มหาตัวที่รอดให้บอสค่ะ
+                    potential_vision_models = [
+                        "llama-3.2-11b-vision-preview", # ตัวเดิมที่มักจะใช้ได้
+                        "llama-3.2-90b-vision-preview", # ตัวใหญ่กันเหนียว
+                        "llama-3.2-11b-vision-instruct", # ตัวใหม่
+                        "llama-3.2-90b-vision-instruct" # ตัวใหม่รุ่นใหญ่
+                    ]
+                    
+                    for model_id in potential_vision_models:
+                        try:
+                            # เตรียม Message แบบ Vision
+                            vision_content = [
+                                {"type": "text", "text": user_input},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}}
+                            ]
+                            current_messages = messages_for_api + [{"role": "user", "content": vision_content}]
+                            
+                            stream_response = client.chat.completions.create(
+                                model=model_id,
+                                messages=current_messages,
+                                stream=True
+                            )
+                            break # ถ้าเจอตัวที่รอด ให้หยุดลูปทันทีค่ะ
+                        except Exception:
+                            continue # ถ้าตัวนี้ล่ม (404/400) ให้ข้ามไปลองตัวถัดไปค่ะ
                 else:
-                    active_model = selected_model_id
-                    messages_for_api.append({"role": "user", "content": user_input})
+                    # ถ้าไม่มีรูป ใช้สมองตามที่บอสเลือกในหน้าเว็บ
+                    stream_response = client.chat.completions.create(
+                        model=selected_model_id,
+                        messages=messages_for_api + [{"role": "user", "content": user_input}],
+                        stream=True
+                    )
 
-                # 🛡️ ระบบ Fallback ดัก Error 400 (Decommissioned)
-                try:
-                    stream_response = client.chat.completions.create(model=active_model, messages=messages_for_api, stream=True)
-                except Exception as e:
-                    if "decommissioned" in str(e).lower() or "400" in str(e):
-                        # ถ้า 11B ใช้ไม่ได้ รินสลับไปใช้ตัวที่เสถียรที่สุดใน Groq ตอนนี้ให้ทันทีค่ะ
-                        active_model = "llama-3.2-90b-vision-instruct" if uploaded_file else "llama-3.3-70b-versatile"
-                        stream_response = client.chat.completions.create(model=active_model, messages=messages_for_api, stream=True)
-                    else:
-                        raise e
+                if not stream_response:
+                    raise Exception("ไม่พบโมเดลสมองที่พร้อมใช้งานในขณะนี้ค่ะ")
 
                 answer = ""
                 for chunk in stream_response:
@@ -170,4 +182,4 @@ if user_input:
                         b64 = base64.b64encode(f.read()).decode()
                         st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
             except Exception as e: 
-                response_placeholder.error(f"ระบบขัดข้อง รินกำลังรีบตรวจสอบค่ะ: {str(e)}")
+                response_placeholder.error(f"ระบบขัดข้อง รินจะรีบกู้คืนระบบค่ะ: {str(e)}")
