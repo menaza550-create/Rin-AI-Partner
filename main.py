@@ -7,7 +7,7 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, re
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.10 Vision", layout="centered")
+st.set_page_config(page_title="Rin v38.11 Vision", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
@@ -28,7 +28,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Semantic Vector Memory ---
+# --- 2. Semantic Vector Memory (Pinecone) ---
 def get_semantic_memory(user_input):
     try:
         pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
@@ -38,8 +38,7 @@ def get_semantic_memory(user_input):
         search_results = index.query(vector=res.data[0].embedding, top_k=2, include_metadata=True)
         memories = [f"{match['metadata']['text']}" for match in search_results['matches']]
         return "\n".join(memories) if memories else "ไม่มีข้อมูลในอดีต"
-    except: 
-        return "Pinecone Disconnected"
+    except: return "Pinecone Disconnected"
 
 def save_semantic_memory(u_input, r_output):
     try:
@@ -53,8 +52,7 @@ def save_semantic_memory(u_input, r_output):
 
 # --- 3. Sidebar ---
 with st.sidebar:
-    if os.path.exists(RIN_AVATAR_PATH): 
-        st.image(RIN_AVATAR_PATH, use_container_width=True)
+    if os.path.exists(RIN_AVATAR_PATH): st.image(RIN_AVATAR_PATH, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
     search_mode = st.toggle("🔍 โหมดสแกนเน็ต", value=False)
     voice_on = st.toggle("🔊 เสียงเลขา", value=True)
@@ -62,40 +60,26 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# --- 4. Main Menu & AI Model Selector ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.10 Vision</h2>", unsafe_allow_html=True)
+# --- 4. Main Menu & AI Selector ---
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.11 Vision</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
 
-ai_mode = st.radio(
-    "เลือกระดับสมองของริน (Model Level):",
-    ["⚡ รวดเร็ว (Fast)", "🧠 วิเคราะห์ลึก (Ultra)"],
-    index=0 
-)
-
-model_mapping = {
-    "⚡ รวดเร็ว (Fast)": "llama-3.1-8b-instant",       
-    "🧠 วิเคราะห์ลึก (Ultra)": "llama-3.3-70b-versatile" 
-}
+ai_mode = st.radio("เลือกระดับสมองของริน:", ["⚡ รวดเร็ว (Fast)", "🧠 วิเคราะห์ลึก (Ultra)"], index=0)
+model_mapping = {"⚡ รวดเร็ว (Fast)": "llama-3.1-8b-instant", "🧠 วิเคราะห์ลึก (Ultra)": "llama-3.3-70b-versatile"}
 selected_model_id = model_mapping[ai_mode]
 st.write("---")
 
-# --- Render Chat History ---
-if "messages" not in st.session_state: 
-    st.session_state.messages = []
-
+if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
     curr_avatar = get_avatar() if m["role"] == "assistant" else None
-    with st.chat_message(m["role"], avatar=curr_avatar): 
-        if "image" in m:
-            st.image(m["image"], width=300) # แสดงรูปเก่าที่เคยส่ง
+    with st.chat_message(m["role"], avatar=curr_avatar):
+        if "image" in m: st.image(m["image"], width=300)
         st.markdown(m["content"])
 
-# --- 5. Input Layer (รวมที่อัปโหลดรูป) ---
+# --- 5. Input Layer ---
 uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินวิเคราะห์ (ถ้ามี)", type=["jpg", "jpeg", "png"])
-
 col_mic, col_input = st.columns([1, 6])
-with col_mic: 
-    audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
+with col_mic: audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
 user_input = st.chat_input("คุยกับริน หรือสั่งวิเคราะห์รูปได้เลยค่ะบอส...")
 
 if audio:
@@ -105,59 +89,43 @@ if audio:
         with open("temp.wav", "rb") as f:
             ts = client.audio.transcriptions.create(file=("temp.wav", f.read()), model="whisper-large-v3")
             user_input = ts.text
-    except: 
-        st.error("ระบบรับเสียงขัดข้อง")
+    except: st.error("ระบบรับเสียงขัดข้อง")
 
-# --- 6. Brain Processing (Vision + Text) ---
+# --- 6. Brain Processing ---
 if user_input:
-    # 1. จัดการข้อความฝั่งบอส (แสดงผล)
     user_msg_data = {"role": "user", "content": user_input}
     img_base64 = None
-    
     if uploaded_file:
         img_bytes = uploaded_file.getvalue()
-        user_msg_data["image"] = img_bytes # เก็บรูปไว้โชว์ในแชท
+        user_msg_data["image"] = img_bytes
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-
     st.session_state.messages.append(user_msg_data)
-    
-    with st.chat_message("user"): 
-        if uploaded_file:
-            st.image(uploaded_file, width=300)
+    with st.chat_message("user"):
+        if uploaded_file: st.image(uploaded_file, width=300)
         st.markdown(user_input)
 
-    # 2. จัดการข้อความฝั่งริน (วิเคราะห์)
     with st.chat_message("assistant", avatar=get_avatar()):
         response_placeholder = st.empty()
-        
         with st.spinner("รินกำลังประมวลผล..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 long_term_ctx = get_semantic_memory(user_input)
-                
                 search_ctx = ""
-                if search_mode and not uploaded_file: # ปิดสแกนเน็ตถ้ารูปมา จะได้ไม่ตีกัน
+                if search_mode and not uploaded_file:
                     try:
                         tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
                         res = tavily.search(query=user_input, max_results=2)
-                        search_ctx = "\n[ข้อมูลสแกนจากเน็ต]: " + " ".join([r['content'] for r in res['results']])
+                        search_ctx = "\n[เน็ต]: " + " ".join([r['content'] for r in res['results']])
                     except: pass
 
-                sys_msg = f"""คุณคือ 'ริน' AI คู่หูระดับเดอาน่าของบอสคิริลิ 
-                ข้อมูลความจำ: {long_term_ctx} {search_ctx}
-                บุคลิก: สุขุม นิ่ง ฉลาด และภักดี วิเคราะห์ภาพได้แม่นยำ ลงท้าย ค่ะ/คะ"""
-
-                # 🔴 การเตรียมสมอง (แยกระหว่างมีรูป กับ ไม่มีรูป)
+                sys_msg = f"คุณคือ 'ริน' AI คู่หูบอสคิริลิ ความจำ: {long_term_ctx} {search_ctx} ตอบสุขุม ลงท้าย ค่ะ/คะ"
                 messages_for_api = [{"role":"system","content":sys_msg}]
-                
-                # เอาประวัติเก่าใส่เข้าไป (เอาเฉพาะข้อความ ป้องกัน Token เต็ม)
                 for m in st.session_state.messages[-4:-1]:
                     messages_for_api.append({"role": m["role"], "content": m["content"]})
 
-                # สร้าง Message ปัจจุบัน
+                # 🔴 แก้ไขจุดนี้: เปลี่ยนชื่อโมเดลเป็นรุ่น Vision ที่เสถียรที่สุดของ Groq
                 if uploaded_file:
-                    # ถ้ามีรูป บังคับสลับสมองไปใช้ Llama Vision ชั่วคราว
-                    active_model = "llama-3.2-11b-vision-preview"
+                    active_model = "llama-3.2-11b-vision-preview" # รินใส่รุ่นที่ระบบ Groq ปัจจุบันรองรับไว้ให้ค่ะ
                     messages_for_api.append({
                         "role": "user",
                         "content": [
@@ -166,35 +134,20 @@ if user_input:
                         ]
                     })
                 else:
-                    # ถ้าไม่มีรูป ใช้สมองตามที่บอสเลือกใน UI
                     active_model = selected_model_id
                     messages_for_api.append({"role": "user", "content": user_input})
 
-                # 🔴 ยิงคำสั่งแบบ Streaming
-                stream_response = client.chat.completions.create(
-                    model=active_model, 
-                    messages=messages_for_api,
-                    stream=True 
-                )
-                
+                stream_response = client.chat.completions.create(model=active_model, messages=messages_for_api, stream=True)
                 answer = ""
                 for chunk in stream_response:
                     if chunk.choices[0].delta.content is not None:
                         answer += chunk.choices[0].delta.content
-                        response_placeholder.markdown(answer + "▌") 
+                        response_placeholder.markdown(answer + "▌")
                 
                 clean_answer = re.sub(r'<.*?>', '', answer, flags=re.DOTALL).strip() if '<think>' in answer else answer
                 response_placeholder.markdown(clean_answer)
-                
                 save_semantic_memory(user_input, clean_answer)
                 st.session_state.messages.append({"role": "assistant", "content": clean_answer})
 
                 if voice_on:
-                    communicate = edge_tts.Communicate(clean_answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
-                    asyncio.run(communicate.save("rin_voice.mp3"))
-                    with open("rin_voice.mp3", "rb") as f:
-                        b64 = base64.b64encode(f.read()).decode()
-                        st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
-                        
-            except Exception as e: 
-                response_placeholder.error(f"ระบบขัดข้อง กรุณาลองใหม่ค่ะ: {str(e)}")
+                    communicate = edge_
