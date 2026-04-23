@@ -11,3 +11,4 @@ oauth2client
 pyairtable
 aiohttp>=3.9.0
 pinecone
+line-bot-sdk
