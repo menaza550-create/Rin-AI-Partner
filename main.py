@@ -7,7 +7,7 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, re
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.7 Extreme", layout="centered")
+st.set_page_config(page_title="Rin v38.9 Lightning", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
@@ -66,20 +66,19 @@ with st.sidebar:
         st.rerun()
 
 # --- 4. Main Menu & AI Model Selector ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.7 Extreme</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.9 Lightning</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
 
-# 🔴 UI เลือกระดับสมอง (เหลือ 2 โหมดตามคำสั่งบอส)
+# 🔴 UI เลือกระดับสมอง 
 ai_mode = st.radio(
     "เลือกระดับสมองของริน (Model Level):",
     ["⚡ รวดเร็ว (Fast)", "🧠 วิเคราะห์ลึก (Ultra)"],
     index=0 
 )
 
-# 🔴 แมปชื่อโหมด (ลบโหมดสมดุลออกเรียบร้อยค่ะ)
 model_mapping = {
     "⚡ รวดเร็ว (Fast)": "llama-3.1-8b-instant",       
-    "🧠 วิเคราะห์ลึก (Ultra)": "llama-4-maverick-17b-128e-instruct" 
+    "🧠 วิเคราะห์ลึก (Ultra)": "llama-3.3-70b-versatile" 
 }
 selected_model_id = model_mapping[ai_mode]
 
@@ -110,7 +109,7 @@ if audio:
     except: 
         st.error("ระบบรับเสียงขัดข้อง")
 
-# --- 6. Brain Processing ---
+# --- 6. Brain Processing (อัปเกรด Streaming แบบเรียลไทม์) ---
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): 
@@ -119,7 +118,7 @@ if user_input:
     with st.chat_message("assistant", avatar=get_avatar()):
         response_placeholder = st.empty()
         
-        with st.spinner(f"รินกำลังคิดด้วยโหมด {ai_mode}..."):
+        with st.spinner(f"รินกำลังเชื่อมต่อสมอง {ai_mode}..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 long_term_ctx = get_semantic_memory(user_input)
@@ -137,20 +136,28 @@ if user_input:
                 ข้อมูลความจำที่เกี่ยวข้อง: {long_term_ctx} {search_ctx}
                 บุคลิก: สุขุม นิ่ง ฉลาด และภักดี วิเคราะห์เชื่อมโยงเก่ง ลงท้าย ค่ะ/คะ"""
 
-                res = client.chat.completions.create(
+                # 🔴 เปิดโหมด Streaming ให้พิมพ์ตอบทีละตัวอักษรทันที
+                stream_response = client.chat.completions.create(
                     model=selected_model_id, 
-                    messages=[{"role":"system","content":sys_msg}] + st.session_state.messages[-5:]
+                    messages=[{"role":"system","content":sys_msg}] + st.session_state.messages[-5:],
+                    stream=True  # จุดนี้คือเคล็ดลับความไวแสงค่ะ!
                 )
-                answer = res.choices[0].message.content
                 
-                # ทำความสะอาดการจัดรูปแบบ
+                answer = ""
+                # ลูปเพื่อดึงข้อความมาโชว์ทันทีแบบเรียลไทม์
+                for chunk in stream_response:
+                    if chunk.choices[0].delta.content is not None:
+                        answer += chunk.choices[0].delta.content
+                        response_placeholder.markdown(answer + "▌") # มีเคอร์เซอร์กระพริบให้ดูด้วยค่ะ
+                
+                # ทำความสะอาดเมื่อพิมพ์เสร็จ
                 clean_answer = re.sub(r'<.*?>', '', answer, flags=re.DOTALL).strip() if '<think>' in answer else answer
-                
                 response_placeholder.markdown(clean_answer)
                 
                 save_semantic_memory(user_input, clean_answer)
                 st.session_state.messages.append({"role": "assistant", "content": clean_answer})
 
+                # สร้างเสียงพูดหลังจากข้อความแสดงเสร็จแล้ว (ไม่บล็อกหน้าจอ)
                 if voice_on:
                     communicate = edge_tts.Communicate(clean_answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
                     asyncio.run(communicate.save("rin_voice.mp3"))
