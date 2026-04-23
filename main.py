@@ -7,7 +7,7 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, re
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.4 Ultra", layout="centered")
+st.set_page_config(page_title="Rin v38.7 Extreme", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
@@ -25,7 +25,6 @@ st.markdown(f"""
     .action-chip {{ display: inline-block; padding: 10px 20px; border-radius: 25px; background-color: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; color: #000000 !important; font-size: 16px !important; font-weight: bold; transition: 0.3s; text-align: center; }}
     .action-chip:hover {{ background-color: #DDA0DD; color: #ffffff !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
     
-    /* ตกแต่งกล่องเลือกโหมดสมอง */
     div[data-testid="stRadio"] > div {{ flex-direction: row; align-items: center; justify-content: center; background-color: #f8f9fa; padding: 10px; border-radius: 15px; border: 1px solid #eee; }}
     </style>
     """, unsafe_allow_html=True)
@@ -66,22 +65,21 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# --- 4. Main Menu & AI Model Selector (UI ใหม่) ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.4 Ultra</h2>", unsafe_allow_html=True)
+# --- 4. Main Menu & AI Model Selector ---
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.7 Extreme</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
 
-# 🔴 UI เลือกระดับสมอง
+# 🔴 UI เลือกระดับสมอง (เหลือ 2 โหมดตามคำสั่งบอส)
 ai_mode = st.radio(
     "เลือกระดับสมองของริน (Model Level):",
-    ["⚡ รวดเร็ว (Fast)", "⚖️ สมดุล (Pro)", "🧠 วิเคราะห์ลึก (Ultra)"],
+    ["⚡ รวดเร็ว (Fast)", "🧠 วิเคราะห์ลึก (Ultra)"],
     index=0 
 )
 
-# แมปชื่อโหมดเข้ากับ ID ของ Groq
+# 🔴 แมปชื่อโหมด (ลบโหมดสมดุลออกเรียบร้อยค่ะ)
 model_mapping = {
     "⚡ รวดเร็ว (Fast)": "llama-3.1-8b-instant",       
-    "⚖️ สมดุล (Pro)": "llama-3.3-70b-versatile",         
-    "🧠 วิเคราะห์ลึก (Ultra)": "deepseek-r1-distill-llama-70b"  
+    "🧠 วิเคราะห์ลึก (Ultra)": "llama-4-maverick-17b-128e-instruct" 
 }
 selected_model_id = model_mapping[ai_mode]
 
@@ -112,7 +110,7 @@ if audio:
     except: 
         st.error("ระบบรับเสียงขัดข้อง")
 
-# --- 6. Brain Processing (ความเร็วแสง + สมอง DeepSeek) ---
+# --- 6. Brain Processing ---
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): 
@@ -145,10 +143,8 @@ if user_input:
                 )
                 answer = res.choices[0].message.content
                 
-                # ทำความสะอาดแท็ก <think> ของ DeepSeek
-                clean_answer = re.sub(r'<think>.*?</think>', '', answer, flags=re.DOTALL).strip()
-                if not clean_answer: 
-                    clean_answer = answer 
+                # ทำความสะอาดการจัดรูปแบบ
+                clean_answer = re.sub(r'<.*?>', '', answer, flags=re.DOTALL).strip() if '<think>' in answer else answer
                 
                 response_placeholder.markdown(clean_answer)
                 
