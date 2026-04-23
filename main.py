@@ -150,4 +150,9 @@ if user_input:
                 st.session_state.messages.append({"role": "assistant", "content": clean_answer})
 
                 if voice_on:
-                    communicate = edge_
+                    communicate = edge_tts.Communicate(clean_answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
+                    asyncio.run(communicate.save("rin_voice.mp3"))
+                    with open("rin_voice.mp3", "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                        st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
+            except Exception as e: response_placeholder.error(f"Error: {str(e)}")
