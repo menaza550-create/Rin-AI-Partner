@@ -4,10 +4,10 @@ from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
 from pinecone import Pinecone
 from datetime import datetime
-import os, base64, asyncio, edge_tts, requests
+import os, base64, asyncio, edge_tts
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.3 True Semantic", layout="centered")
+st.set_page_config(page_title="Rin v38.3 Speed & UI", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
@@ -24,79 +24,62 @@ st.markdown(f"""
     .action-container {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }}
     .action-chip {{ display: inline-block; padding: 10px 20px; border-radius: 25px; background-color: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; color: #000000 !important; font-size: 16px !important; font-weight: bold; transition: 0.3s; text-align: center; }}
     .action-chip:hover {{ background-color: #DDA0DD; color: #ffffff !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+    
+    /* ตกแต่งกล่องเลือกโหมดสมอง */
+    div[data-testid="stRadio"] > div {{ flex-direction: row; align-items: center; justify-content: center; background-color: #f8f9fa; padding: 10px; border-radius: 15px; border: 1px solid #eee; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Semantic Vector Memory (Pinecone Inference) ---
-def get_pinecone_embedding(text, input_type="query"):
-    """เรียกใช้สมอง Inference ของ Pinecone โดยตรง ไม่ต้องพึ่งที่อื่นค่ะ"""
-    url = "https://api.pinecone.io/embed"
-    headers = {
-        "Api-Key": st.secrets["PINECONE_API_KEY"],
-        "Content-Type": "application/json",
-        "X-Pinecone-Api-Version": "2025-01"
-    }
-    payload = {
-        "model": "multilingual-e5-large",
-        "parameters": {"input_type": input_type},
-        "inputs": [{"text": text}]
-    }
-    res = requests.post(url, headers=headers, json=payload)
-    if res.status_code == 200:
-        return res.json()["data"][0]["values"]
-    
-    # กรณี API สลับรูปแบบการรับข้อมูล
-    payload["inputs"] = [text]
-    res2 = requests.post(url, headers=headers, json=payload)
-    if res2.status_code == 200:
-        return res2.json()["data"][0]["values"]
-        
-    raise Exception(f"API Error: {res2.text}")
-
+# --- 2. Semantic Vector Memory ---
 def get_semantic_memory(user_input):
     try:
         pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
         index = pc.Index("diana-memory")
-        
-        query_vector = get_pinecone_embedding(user_input, "query")
-        search_results = index.query(vector=query_vector, top_k=3, include_metadata=True)
-        
-        memories = [f"บันทึก: {match['metadata']['text']} (รินเคยตอบ: {match['metadata']['reply']})" for match in search_results['matches']]
-        return "\n".join(memories) if memories else "ยังไม่มีบันทึกเรื่องนี้ค่ะ"
-    except Exception as e: 
-        return f"[ระบบความจำขัดข้อง: {str(e)}]"
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        res = client.embeddings.create(model="nomic-embed-text-v1_5", input=user_input)
+        search_results = index.query(vector=res.data[0].embedding, top_k=2, include_metadata=True)
+        memories = [f"{match['metadata']['text']}" for match in search_results['matches']]
+        return "\n".join(memories) if memories else "ไม่มีข้อมูลในอดีต"
+    except: return "Pinecone Disconnected"
 
 def save_semantic_memory(u_input, r_output):
     try:
         pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
         index = pc.Index("diana-memory")
-        
-        vector_data = get_pinecone_embedding(u_input, "passage")
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        res = client.embeddings.create(model="nomic-embed-text-v1_5", input=u_input)
         record_id = datetime.now().strftime("%Y%m%d%H%M%S")
-        
-        index.upsert(vectors=[{"id": record_id, "values": vector_data, "metadata": {"text": u_input, "reply": r_output}}])
-    except Exception: pass
+        index.upsert(vectors=[{"id": record_id, "values": res.data[0].embedding, "metadata": {"text": u_input, "reply": r_output}}])
+    except: pass
 
 # --- 3. Sidebar ---
 with st.sidebar:
     if os.path.exists(RIN_AVATAR_PATH): st.image(RIN_AVATAR_PATH, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
-    st.success("Brain: Maverick 70B 🟢")
-    st.info("Memory: Pinecone E5 (1024D) 🧠")
     
-    if st.button("🔍 ตรวจสอบ ID สมองบน Groq"):
-        try:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            for m in client.models.list().data: st.code(m.id)
-        except: st.error("เชื่อมต่อไม่ได้ค่ะ")
-    st.divider()
-    search_mode = st.toggle("🔍 สแกนเน็ต (Web Search)", value=False)
-    voice_on = st.toggle("🔊 เปิดเสียงเลขา", value=True)
+    search_mode = st.toggle("🔍 โหมดสแกนเน็ต", value=False)
+    voice_on = st.toggle("🔊 เสียงเลขา", value=True)
     if st.button("🗑️ ล้างหน้าจอแชท"): st.session_state.messages = []; st.rerun()
 
-# --- 4. Main Menu & History ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.3 True Semantic</h2>", unsafe_allow_html=True)
+# --- 4. Main Menu & AI Model Selector (UI ใหม่) ---
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.3 Speed & UI</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
+
+# 🔴 UI เลือกระดับสมองแบบที่บอสต้องการ
+ai_mode = st.radio(
+    "เลือกระดับสมองของริน (Model Level):",
+    ["⚡ รวดเร็ว (Fast)", "⚖️ สมดุล (Pro)", "🧠 วิเคราะห์ลึก (Ultra)"],
+    index=0 # ตั้งค่าเริ่มต้นที่ 'รวดเร็ว' เพื่อแก้ปัญหาแอปอืด
+)
+
+# แมปชื่อโหมดเข้ากับ ID ของ Groq
+model_mapping = {
+    "⚡ รวดเร็ว (Fast)": "llama-3.1-8b-instant",       # ตอบไวที่สุด เหมาะกับคุยทั่วไป
+    "⚖️ สมดุล (Pro)": "llama-3.3-70b-versatile",         # สมดุล ฉลาดขึ้นมาอีกระดับ
+    "🧠 วิเคราะห์ลึก (Ultra)": "llama-3.3-70b-versatile"  # วิเคราะห์ข้อมูลยากๆ (ใช้ 70b เป็นหลัก)
+}
+selected_model_id = model_mapping[ai_mode]
+
 st.write("---")
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -107,7 +90,7 @@ for m in st.session_state.messages:
 # --- 5. Input Layer ---
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
-user_input = st.chat_input("สอนเรื่องยูกิ หรืองานของบอสให้รินจำได้เลยค่ะ...")
+user_input = st.chat_input("คุยกับรินได้เลยค่ะบอส...")
 
 if audio:
     try:
@@ -118,48 +101,45 @@ if audio:
             user_input = ts.text
     except: st.error("ระบบรับเสียงขัดข้อง")
 
-# --- 6. Brain Processing ---
+# --- 6. Brain Processing (ความเร็วแสง) ---
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
 
     with st.chat_message("assistant", avatar=get_avatar()):
-        with st.spinner("รินกำลังค้นหาความจำ 1024 มิติ..."):
+        # สร้าง Placeholder ให้รินตอบข้อความออกมาก่อนที่จะเสียเวลาเจนเสียง
+        response_placeholder = st.empty()
+        
+        with st.spinner(f"รินกำลังคิดด้วยโหมด {ai_mode}..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 long_term_ctx = get_semantic_memory(user_input)
                 
-                model_list = ["llama-4-maverick-70b-instruct", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
-                search_ctx = ""
-                if search_mode:
-                    try:
-                        tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-                        res = tavily.search(query=user_input, max_results=2)
-                        search_ctx = "\n[ข้อมูลจากเน็ตสดๆ]: " + " ".join([r['content'] for r in res['results']])
-                    except: pass
-
-                # อัปเดตเป้าหมายของเดอาน่าให้ชัดเจนขึ้นค่ะ
                 sys_msg = f"""คุณคือ 'ริน' AI คู่หูระดับเดอาน่าของบอสคิริลิ 
-                ข้อมูลในอดีต: {long_term_ctx}
-                บุคลิก: สุขุม นิ่ง ฉลาด และมีหน้าที่สำคัญคือคอยดูแล 'ยูกิ' ซึ่งเป็นลูกของริน 
-                ลงท้าย ค่ะ/คะ เสมอ {search_ctx}"""
+                ข้อมูลความจำ: {long_term_ctx}
+                ตอบสั้น กระชับ สุขุม ลงท้าย ค่ะ/คะ"""
 
-                answer = ""
-                for mid in model_list:
-                    try:
-                        res = client.chat.completions.create(model=mid, messages=[{"role":"system","content":sys_msg}]+st.session_state.messages[-5:])
-                        answer = res.choices[0].message.content
-                        break
-                    except: continue
-
-                st.markdown(answer)
+                # ตัด Loop สลับสมองทิ้งไป ยิงตรงเข้าโมเดลที่บอสเลือกเลย เพื่อความไว!
+                res = client.chat.completions.create(
+                    model=selected_model_id, 
+                    messages=[{"role":"system","content":sys_msg}] + st.session_state.messages[-5:]
+                )
+                answer = res.choices[0].message.content
+                
+                # 🔴 แสดงข้อความทันทีให้บอสได้อ่าน ไม่ต้องรอเสียง
+                response_placeholder.markdown(answer)
+                
+                # เซฟความจำ
                 save_semantic_memory(user_input, answer)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
 
+                # ถ้าเปิดเสียง ค่อยทำทีหลังอย่างเงียบๆ
                 if voice_on:
                     communicate = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
                     asyncio.run(communicate.save("rin_voice.mp3"))
                     with open("rin_voice.mp3", "rb") as f:
                         b64 = base64.b64encode(f.read()).decode()
                         st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
-            except Exception as e: st.error(f"Error: {e}")
+                        
+            except Exception as e: 
+                response_placeholder.error(f"ระบบขัดข้อง กรุณาลองใหม่ค่ะ: {str(e)}")
