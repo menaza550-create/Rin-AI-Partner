@@ -7,11 +7,12 @@ from datetime import datetime
 import os, base64, asyncio, edge_tts, re
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.11 Vision", layout="centered")
+st.set_page_config(page_title="Rin v38.13 Vision Instruct", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
 def get_avatar():
+    # เช็กว่ามีรูปรินไหม ถ้าไม่มีใช้ไอคอนแว่นแทนค่ะ
     return RIN_AVATAR_PATH if os.path.exists(RIN_AVATAR_PATH) else "👓"
 
 st.markdown(f"""
@@ -52,7 +53,7 @@ def save_semantic_memory(u_input, r_output):
 
 # --- 3. Sidebar ---
 with st.sidebar:
-    if os.path.exists(RIN_AVATAR_PATH): st.image(RIN_AVATAR_PATH, use_container_width=True)
+    if os.path.exists(RIN_AVATAR_PATH): st.image(RIN_AVATAR_PATH)
     st.markdown("### 🏛️ Diana System Core")
     search_mode = st.toggle("🔍 โหมดสแกนเน็ต", value=False)
     voice_on = st.toggle("🔊 เสียงเลขา", value=True)
@@ -61,7 +62,7 @@ with st.sidebar:
         st.rerun()
 
 # --- 4. Main Menu & AI Selector ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.11 Vision</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.13 Vision</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
 
 ai_mode = st.radio("เลือกระดับสมองของริน:", ["⚡ รวดเร็ว (Fast)", "🧠 วิเคราะห์ลึก (Ultra)"], index=0)
@@ -80,7 +81,7 @@ for m in st.session_state.messages:
 uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินวิเคราะห์ (ถ้ามี)", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
-user_input = st.chat_input("คุยกับริน หรือสั่งวิเคราะห์รูปได้เลยค่ะบอส...")
+user_input = st.chat_input("คุยกับริน หรือส่งรูปให้ดูได้เลยค่ะบอส...")
 
 if audio:
     try:
@@ -106,7 +107,7 @@ if user_input:
 
     with st.chat_message("assistant", avatar=get_avatar()):
         response_placeholder = st.empty()
-        with st.spinner("รินกำลังประมวลผล..."):
+        with st.spinner("รินกำลังประมวลผลข้อมูล..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 long_term_ctx = get_semantic_memory(user_input)
@@ -118,14 +119,17 @@ if user_input:
                         search_ctx = "\n[เน็ต]: " + " ".join([r['content'] for r in res['results']])
                     except: pass
 
-                sys_msg = f"คุณคือ 'ริน' AI คู่หูบอสคิริลิ ความจำ: {long_term_ctx} {search_ctx} ตอบสุขุม ลงท้าย ค่ะ/คะ"
+                sys_msg = f"คุณคือ 'ริน' AI คู่หูบอสคิริลิ ความจำ: {long_term_ctx} {search_ctx} ตอบสุขุม ฉลาด ภักดี ลงท้าย ค่ะ/คะ"
                 messages_for_api = [{"role":"system","content":sys_msg}]
+                
+                # ดึงบริบทแชทเก่ามาด้วย 3 รอบล่าสุด
                 for m in st.session_state.messages[-4:-1]:
                     messages_for_api.append({"role": m["role"], "content": m["content"]})
 
-                # 🔴 แก้ไขจุดนี้: เปลี่ยนชื่อโมเดลเป็นรุ่น Vision ที่เสถียรที่สุดของ Groq
+                # 🔴 ส่วนการเลือกโมเดล (Instruct Version)
                 if uploaded_file:
-                    active_model = "llama-3.2-11b-vision-preview" # รินใส่รุ่นที่ระบบ Groq ปัจจุบันรองรับไว้ให้ค่ะ
+                    # ใช้รุ่นที่บอสสั่งมาค่ะ
+                    active_model = "llama-3.2-11b-vision-instruct" 
                     messages_for_api.append({
                         "role": "user",
                         "content": [
@@ -137,7 +141,17 @@ if user_input:
                     active_model = selected_model_id
                     messages_for_api.append({"role": "user", "content": user_input})
 
-                stream_response = client.chat.completions.create(model=active_model, messages=messages_for_api, stream=True)
+                # 🛡️ ระบบ Fallback ดัก Error 400 (Decommissioned)
+                try:
+                    stream_response = client.chat.completions.create(model=active_model, messages=messages_for_api, stream=True)
+                except Exception as e:
+                    if "decommissioned" in str(e).lower() or "400" in str(e):
+                        # ถ้า 11B ใช้ไม่ได้ รินสลับไปใช้ตัวที่เสถียรที่สุดใน Groq ตอนนี้ให้ทันทีค่ะ
+                        active_model = "llama-3.2-90b-vision-instruct" if uploaded_file else "llama-3.3-70b-versatile"
+                        stream_response = client.chat.completions.create(model=active_model, messages=messages_for_api, stream=True)
+                    else:
+                        raise e
+
                 answer = ""
                 for chunk in stream_response:
                     if chunk.choices[0].delta.content is not None:
@@ -155,4 +169,5 @@ if user_input:
                     with open("rin_voice.mp3", "rb") as f:
                         b64 = base64.b64encode(f.read()).decode()
                         st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>', unsafe_allow_html=True)
-            except Exception as e: response_placeholder.error(f"Error: {str(e)}")
+            except Exception as e: 
+                response_placeholder.error(f"ระบบขัดข้อง รินกำลังรีบตรวจสอบค่ะ: {str(e)}")
