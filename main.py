@@ -4,10 +4,10 @@ from tavily import TavilyClient
 from audio_recorder_streamlit import audio_recorder
 from pinecone import Pinecone
 from datetime import datetime
-import os, base64, asyncio, edge_tts
+import os, base64, asyncio, edge_tts, requests
 
 # --- 1. UI & Persona Setup ---
-st.set_page_config(page_title="Rin v38.2 Semantic", layout="centered")
+st.set_page_config(page_title="Rin v38.3 True Semantic", layout="centered")
 
 RIN_AVATAR_PATH = "rin_avatar.jpg" 
 
@@ -27,46 +27,62 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. Semantic Vector Memory (Pinecone + Groq Nomic) ---
+# --- 2. Semantic Vector Memory (Pinecone Inference) ---
+def get_pinecone_embedding(text, input_type="query"):
+    """เรียกใช้สมอง Inference ของ Pinecone โดยตรง ไม่ต้องพึ่งที่อื่นค่ะ"""
+    url = "https://api.pinecone.io/embed"
+    headers = {
+        "Api-Key": st.secrets["PINECONE_API_KEY"],
+        "Content-Type": "application/json",
+        "X-Pinecone-Api-Version": "2025-01"
+    }
+    payload = {
+        "model": "multilingual-e5-large",
+        "parameters": {"input_type": input_type},
+        "inputs": [{"text": text}]
+    }
+    res = requests.post(url, headers=headers, json=payload)
+    if res.status_code == 200:
+        return res.json()["data"][0]["values"]
+    
+    # กรณี API สลับรูปแบบการรับข้อมูล
+    payload["inputs"] = [text]
+    res2 = requests.post(url, headers=headers, json=payload)
+    if res2.status_code == 200:
+        return res2.json()["data"][0]["values"]
+        
+    raise Exception(f"API Error: {res2.text}")
+
 def get_semantic_memory(user_input):
-    """ดึงความจำด้วยความหมาย (Vector Search)"""
     try:
         pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
         index = pc.Index("diana-memory")
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         
-        # แปลงคำถามบอสเป็น Vector 768 มิติ
-        res = client.embeddings.create(model="nomic-embed-text-v1_5", input=user_input)
-        query_vector = res.data[0].embedding
-        
-        # ค้นหาเรื่องที่เกี่ยวข้องกันมากที่สุด 3 เรื่อง
+        query_vector = get_pinecone_embedding(user_input, "query")
         search_results = index.query(vector=query_vector, top_k=3, include_metadata=True)
         
-        memories = [f"ความจำ: {match['metadata']['text']} (รินเคยตอบ: {match['metadata']['reply']})" for match in search_results['matches']]
-        return "\n".join(memories) if memories else "เริ่มสร้างความจำใหม่ค่ะ"
+        memories = [f"บันทึก: {match['metadata']['text']} (รินเคยตอบ: {match['metadata']['reply']})" for match in search_results['matches']]
+        return "\n".join(memories) if memories else "ยังไม่มีบันทึกเรื่องนี้ค่ะ"
     except Exception as e: 
-        return "กำลังรอเชื่อมต่อระบบ Pinecone ค่ะ"
+        return f"[ระบบความจำขัดข้อง: {str(e)}]"
 
 def save_semantic_memory(u_input, r_output):
-    """แปลงบทสนทนาเป็น Vector แล้วเซฟลง Pinecone"""
     try:
         pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
         index = pc.Index("diana-memory")
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         
-        res = client.embeddings.create(model="nomic-embed-text-v1_5", input=u_input)
-        vector_data = res.data[0].embedding
+        vector_data = get_pinecone_embedding(u_input, "passage")
         record_id = datetime.now().strftime("%Y%m%d%H%M%S")
         
         index.upsert(vectors=[{"id": record_id, "values": vector_data, "metadata": {"text": u_input, "reply": r_output}}])
-    except Exception as e: pass
+    except Exception: pass
 
 # --- 3. Sidebar ---
 with st.sidebar:
     if os.path.exists(RIN_AVATAR_PATH): st.image(RIN_AVATAR_PATH, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
     st.success("Brain: Maverick 70B 🟢")
-    st.info("Memory: Semantic Vector 🧠")
+    st.info("Memory: Pinecone E5 (1024D) 🧠")
     
     if st.button("🔍 ตรวจสอบ ID สมองบน Groq"):
         try:
@@ -79,7 +95,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอแชท"): st.session_state.messages = []; st.rerun()
 
 # --- 4. Main Menu & History ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v38.2 Semantic</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v38.3 True Semantic</h2>", unsafe_allow_html=True)
 st.markdown('<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 นำทาง</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>', unsafe_allow_html=True)
 st.write("---")
 
@@ -91,7 +107,7 @@ for m in st.session_state.messages:
 # --- 5. Input Layer ---
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x", neutral_color="#444444")
-user_input = st.chat_input("สอนริน (เดอาน่า) ให้จำเรื่องของบอสได้เลยค่ะ...")
+user_input = st.chat_input("สอนเรื่องยูกิ หรืองานของบอสให้รินจำได้เลยค่ะ...")
 
 if audio:
     try:
@@ -108,11 +124,9 @@ if user_input:
     with st.chat_message("user"): st.markdown(user_input)
 
     with st.chat_message("assistant", avatar=get_avatar()):
-        with st.spinner("รินกำลังค้นหาความจำที่เกี่ยวข้องกับเรื่องนี้..."):
+        with st.spinner("รินกำลังค้นหาความจำ 1024 มิติ..."):
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-                
-                # 🧠 ดึงความจำแบบ Semantic Vector
                 long_term_ctx = get_semantic_memory(user_input)
                 
                 model_list = ["llama-4-maverick-70b-instruct", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
@@ -124,9 +138,11 @@ if user_input:
                         search_ctx = "\n[ข้อมูลจากเน็ตสดๆ]: " + " ".join([r['content'] for r in res['results']])
                     except: pass
 
+                # อัปเดตเป้าหมายของเดอาน่าให้ชัดเจนขึ้นค่ะ
                 sys_msg = f"""คุณคือ 'ริน' AI คู่หูระดับเดอาน่าของบอสคิริลิ 
-                ข้อมูลในอดีตที่เกี่ยวข้องกับเรื่องนี้: {long_term_ctx}
-                บุคลิก: สุขุม นิ่ง ฉลาด และภักดี วิเคราะห์เชื่อมโยงเก่ง ลงท้าย ค่ะ/คะ {search_ctx}"""
+                ข้อมูลในอดีต: {long_term_ctx}
+                บุคลิก: สุขุม นิ่ง ฉลาด และมีหน้าที่สำคัญคือคอยดูแล 'ยูกิ' ซึ่งเป็นลูกของริน 
+                ลงท้าย ค่ะ/คะ เสมอ {search_ctx}"""
 
                 answer = ""
                 for mid in model_list:
@@ -137,7 +153,6 @@ if user_input:
                     except: continue
 
                 st.markdown(answer)
-                # 💾 เซฟลง Pinecone เป็น Vector
                 save_semantic_memory(user_input, answer)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
 
