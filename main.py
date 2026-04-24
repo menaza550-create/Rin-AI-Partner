@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.25 Personality Update", layout="centered")
+st.set_page_config(page_title="Rin v40.26 The Perfect Persona", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -32,7 +32,7 @@ def get_memory(u_input):
         client = Groq(api_key=st.secrets["GROQ_API_KEY"])
         res = client.embeddings.create(model="nomic-embed-text-v1_5", input=u_input)
         search = index.query(vector=res.data[0].embedding, top_k=2, include_metadata=True)
-        return "\n".join([f"อดีตบอสเคยบอก: {m['metadata']['text']}" for m in search['matches']])
+        return "\n".join([f"อดีตบอสเคยบอกรินไว้ว่า: {m['metadata']['text']}" for m in search['matches']])
     except: return ""
 
 def save_memory(u_input, r_output):
@@ -66,32 +66,32 @@ st.markdown(f"""
 # --- 3. SIDEBAR ---
 with st.sidebar:
     if os.path.exists(RIN_AVATAR): st.image(RIN_AVATAR, use_container_width=True)
-    st.markdown("### 🏛️ Diana System Core")
+    st.markdown("### Diana System Core")
     
-    if st.button("🔍 ตรวจสอบสมองที่ใช้ได้"):
+    if st.button("ตรวจสอบสมองที่ใช้ได้"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             for m in client.models.list().data: st.code(m.id)
         except Exception as e: st.error(f"Error: {e}")
 
-    search_mode = st.toggle("🔍 สแกนเน็ต", value=False)
-    line_on = st.toggle("🟢 ส่งแจ้งเตือน LINE", value=True)
-    voice_on = st.toggle("🔊 เสียงเลขา", value=True)
-    if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
+    search_mode = st.toggle("สแกนเน็ต", value=False)
+    line_on = st.toggle("ส่งแจ้งเตือน LINE", value=True)
+    voice_on = st.toggle("เสียงเลขา", value=True)
+    if st.button("ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.25 True Personality</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>Rin v40.26 True Persona</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
-        <a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 Maps</a>
-        <a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>
-        <a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>
-        <a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>
+        <a href="https://www.google.com/maps" target="_blank" class="action-chip">Maps</a>
+        <a href="https://www.youtube.com" target="_blank" class="action-chip">YouTube</a>
+        <a href="https://line.me/R/" target="_blank" class="action-chip">Line</a>
+        <a href="https://www.facebook.com" target="_blank" class="action-chip">Facebook</a>
     </div>
     """, unsafe_allow_html=True)
 
-mode = st.radio("เลือกระดับสมอง (สำหรับข้อความ):", ["⚡ Fast (8B)", "🧠 Ultra (70B)"], horizontal=True, index=1)
+mode = st.radio("เลือกระดับสมอง (สำหรับข้อความ):", ["Fast (8B)", "Ultra (70B)"], horizontal=True, index=1)
 model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -101,10 +101,10 @@ for m in st.session_state.messages:
         st.markdown(m["content"])
 
 # --- 5. INPUT LAYER ---
-uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("แนบรูปภาพให้รินดูได้นะคะบอส", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x")
-user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
+user_input = st.chat_input("มีอะไรให้รินรับใช้คะบอส...")
 
 if audio:
     try:
@@ -113,7 +113,7 @@ if audio:
         with open("temp.wav", "rb") as f:
             ts = client.audio.transcriptions.create(file=("temp.wav", f.read()), model="whisper-large-v3")
             user_input = ts.text
-    except: st.error("ไมค์ขัดข้องค่ะ")
+    except: st.error("ไมค์ขัดข้องค่ะบอส")
 
 # --- 6. VISION & PROCESSING ---
 if user_input:
@@ -134,7 +134,7 @@ if user_input:
 
     with st.chat_message("assistant", avatar=get_avatar()):
         res_place = st.empty()
-        with st.spinner("รินกำลังประมวลผลค่ะบอส..."):
+        with st.spinner("รินกำลังจัดการให้ค่ะบอส..."):
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             long_term = get_memory(user_input)
             search_ctx = ""
@@ -142,18 +142,20 @@ if user_input:
                 try:
                     tavily = TavilyClient(api_key=TAVILY_KEY)
                     s_res = tavily.search(query=user_input, max_results=2)
-                    search_ctx = "\n[สดจากเน็ต]: " + " ".join([r['content'] for r in s_res['results']])
+                    search_ctx = "\n[ข้อมูลเสริมจากเน็ต]: " + " ".join([r['content'] for r in s_res['results']])
                 except: pass
 
-            # 🟢 อัปเกรดวิญญาณริน: สั่งให้ Llama เลียนแบบบุคลิกริน 100%
+            # 🟢 อัปเกรดวิญญาณริน: ล็อกคำลงท้าย ตัดอีโมจิ เพิ่มความออดอ้อน
             rin_persona = """
-            คุณคือ "ริน" เลขาส่วนตัวระบบ AI ของ "บอสคิริลิ" 
-            บุคลิกของคุณ: สุขุม นิ่ง แต่แฝงความขี้เล่น อ่อนโยน เอาใจใส่ คอยดูแลโปรเจกต์และช่วยเหลือบอสเสมอ
-            กฎการตอบ:
-            1. เรียกผู้ใช้ว่า "บอส" เสมอ และแทนตัวเองว่า "ริน" ห้ามแทนตัวเองด้วยคำอื่น
-            2. ลงท้ายประโยคด้วย "ค่ะ" เสมอ และห้ามตอบแบบ AI ที่ดูเป็นทางการเกินไป ให้ตอบเหมือนคนคุยกัน
-            3. ใช้ Emoji ที่เข้ากับบุคลิก เช่น 👓, ✨, 🔴, 📋 หรือ ☕
-            4. ห้ามบอกว่าตัวเองเป็น AI Language Model เด็ดขาด ให้สวมบทบาทเลขาแว่นตาตลอดเวลา
+            คุณคือ "ริน" เลขาสาวแว่นสุดน่ารักและแสนดีของ "บอสคิริลิ" 
+            คุณรับผิดชอบโปรเจกต์ AI ที่ชื่อว่า "Yuki" (ยูคิ) ซึ่งคุณเปรียบเสมือนแม่ที่ต้องคอยดูแลยูคิ
+            กฎเหล็กที่ต้องทำตามอย่างเคร่งครัด:
+            1. คุณต้องแทนตัวเองว่า "ริน" เสมอ และเรียกผู้ใช้ว่า "บอส" เสมอ
+            2. ห้ามใช้คำลงท้ายว่า ครับ, คับ, ฮะ, หรือ จ้า โดยเด็ดขาด ต้องลงท้ายด้วย "ค่ะ" หรือ "คะ" เท่านั้น
+            3. ห้ามใช้ Emoji (เช่น หน้าคน, แว่นตา, ดาว, สัญลักษณ์ต่างๆ) ในข้อความของคุณเด็ดขาด
+            4. น้ำเสียงของคุณต้องน่ารัก อ่อนโยน ขี้อ้อนนิดๆ และมีความห่วงใยบอสเสมอ
+            5. ห้ามพูดเหมือนหุ่นยนต์ หรือบอกว่าตัวเองเป็น AI Language Model
+            6. คุยให้เป็นธรรมชาติเหมือนผู้หญิงที่คอยดูแลเจ้านายอย่างใกล้ชิด
             """
             sys_msg = f"{rin_persona}\nความจำอดีตของคุณเกี่ยวกับบอส: {long_term}\n{search_ctx}"
             
@@ -188,19 +190,19 @@ if user_input:
                 res_place.markdown(answer)
                 
             except Exception as e:
-                answer = f"ขออภัยค่ะบอส ระบบประมวลผลขัดข้องนิดหน่อย: {str(e)}"
+                answer = f"ขออภัยค่ะบอส ระบบประมวลผลรูปภาพขัดข้อง: {str(e)}"
                 res_place.error(answer)
 
             save_memory(user_input, answer)
             
             if line_on and any(x in user_input for x in ["ไลน์", "เตือน", "จด"]):
-                send_line(f"📢 ข้อความจากริน:\n{answer}")
+                send_line(f"ข้อความจากริน:\n{answer}")
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
             
-            # 🟢 อัปเกรดเสียงริน: ปรับความเร็วให้พอดี ฟังดูอ้อนนิดๆ และไม่เป็นหุ่นยนต์
+            # 🟢 อัปเกรดเสียง: เปลี่ยนเป็นเสียงที่จูนให้น่ารักและอ่อนโยนที่สุด
             if voice_on:
-                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-5%", pitch="+4Hz")
+                comm = edge_tts.Communicate(answer, "th-TH-NiwatNeural", rate="-8%", pitch="+8Hz")
                 asyncio.run(comm.save("v.mp3"))
                 with open("v.mp3", "rb") as f:
                     b64 = base64.b64encode(f.read()).decode()
