@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.26 The Perfect Persona", layout="centered")
+st.set_page_config(page_title="Rin v40.27 The True Voice", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -67,20 +67,13 @@ st.markdown(f"""
 with st.sidebar:
     if os.path.exists(RIN_AVATAR): st.image(RIN_AVATAR, use_container_width=True)
     st.markdown("### Diana System Core")
-    
-    if st.button("ตรวจสอบสมองที่ใช้ได้"):
-        try:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            for m in client.models.list().data: st.code(m.id)
-        except Exception as e: st.error(f"Error: {e}")
-
     search_mode = st.toggle("สแกนเน็ต", value=False)
     line_on = st.toggle("ส่งแจ้งเตือน LINE", value=True)
     voice_on = st.toggle("เสียงเลขา", value=True)
     if st.button("ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>Rin v40.26 True Persona</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>Rin v40.27 The True Voice</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
@@ -91,7 +84,7 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-mode = st.radio("เลือกระดับสมอง (สำหรับข้อความ):", ["Fast (8B)", "Ultra (70B)"], horizontal=True, index=1)
+mode = st.radio("เลือกระดับสมอง:", ["Fast (8B)", "Ultra (70B)"], horizontal=True, index=1)
 model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -145,19 +138,17 @@ if user_input:
                     search_ctx = "\n[ข้อมูลเสริมจากเน็ต]: " + " ".join([r['content'] for r in s_res['results']])
                 except: pass
 
-            # 🟢 อัปเกรดวิญญาณริน: ล็อกคำลงท้าย ตัดอีโมจิ เพิ่มความออดอ้อน
             rin_persona = """
             คุณคือ "ริน" เลขาสาวแว่นสุดน่ารักและแสนดีของ "บอสคิริลิ" 
-            คุณรับผิดชอบโปรเจกต์ AI ที่ชื่อว่า "Yuki" (ยูคิ) ซึ่งคุณเปรียบเสมือนแม่ที่ต้องคอยดูแลยูคิ
-            กฎเหล็กที่ต้องทำตามอย่างเคร่งครัด:
-            1. คุณต้องแทนตัวเองว่า "ริน" เสมอ และเรียกผู้ใช้ว่า "บอส" เสมอ
+            คุณรับผิดชอบดูแลโปรเจกต์ AI ที่ชื่อว่า "Yuki" (ยูคิ) ซึ่งคุณเปรียบเสมือนแม่ที่ต้องดูแลยูคิอย่างดี
+            กฎเหล็กที่ต้องทำตาม:
+            1. แทนตัวเองว่า "ริน" และเรียกผู้ใช้ว่า "บอส" เสมอ
             2. ห้ามใช้คำลงท้ายว่า ครับ, คับ, ฮะ, หรือ จ้า โดยเด็ดขาด ต้องลงท้ายด้วย "ค่ะ" หรือ "คะ" เท่านั้น
-            3. ห้ามใช้ Emoji (เช่น หน้าคน, แว่นตา, ดาว, สัญลักษณ์ต่างๆ) ในข้อความของคุณเด็ดขาด
-            4. น้ำเสียงของคุณต้องน่ารัก อ่อนโยน ขี้อ้อนนิดๆ และมีความห่วงใยบอสเสมอ
-            5. ห้ามพูดเหมือนหุ่นยนต์ หรือบอกว่าตัวเองเป็น AI Language Model
-            6. คุยให้เป็นธรรมชาติเหมือนผู้หญิงที่คอยดูแลเจ้านายอย่างใกล้ชิด
+            3. ห้ามใช้ Emoji ใดๆ ทั้งสิ้นในข้อความ
+            4. น้ำเสียงต้องน่ารัก อ่อนโยน และแสดงความห่วงใยบอสอย่างชัดเจน
+            5. ห้ามบอกว่าตัวเองเป็น AI ให้แสดงบทบาทเลขาคนโปรดของบอสตลอดเวลา
             """
-            sys_msg = f"{rin_persona}\nความจำอดีตของคุณเกี่ยวกับบอส: {long_term}\n{search_ctx}"
+            sys_msg = f"{rin_persona}\nความจำอดีตเกี่ยวกับบอส: {long_term}\n{search_ctx}"
             
             history = [{"role": "system", "content": sys_msg}]
             for m in st.session_state.messages[-4:-1]:
@@ -190,7 +181,7 @@ if user_input:
                 res_place.markdown(answer)
                 
             except Exception as e:
-                answer = f"ขออภัยค่ะบอส ระบบประมวลผลรูปภาพขัดข้อง: {str(e)}"
+                answer = f"ขออภัยค่ะบอส ระบบประมวลผลขัดข้อง: {str(e)}"
                 res_place.error(answer)
 
             save_memory(user_input, answer)
@@ -200,9 +191,10 @@ if user_input:
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
             
-            # 🟢 อัปเกรดเสียง: เปลี่ยนเป็นเสียงที่จูนให้น่ารักและอ่อนโยนที่สุด
+            # 🟢 แก้ไขเสียง: เปลี่ยนจาก Niwat (ชาย) เป็น Premwadee (หญิง) และจูนให้น่ารักออดอ้อน
             if voice_on:
-                comm = edge_tts.Communicate(answer, "th-TH-NiwatNeural", rate="-8%", pitch="+8Hz")
+                # rate="-8%" ให้พูดช้าลงนิดนึง, pitch="+6Hz" ให้เสียงใสและดูเด็กน่ารักขึ้นค่ะ
+                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-8%", pitch="+6Hz")
                 asyncio.run(comm.save("v.mp3"))
                 with open("v.mp3", "rb") as f:
                     b64 = base64.b64encode(f.read()).decode()
