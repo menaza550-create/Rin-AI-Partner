@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.14 Pure Scout", layout="centered")
+st.set_page_config(page_title="Rin v40.18 The Ultimate", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -59,6 +59,8 @@ st.markdown(f"""
     .action-container {{ display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 20px; }}
     .action-chip {{ display: inline-block; padding: 10px 20px; border-radius: 25px; background-color: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; color: #000000 !important; font-size: 16px !important; font-weight: bold; transition: 0.3s; text-align: center; }}
     .action-chip:hover {{ background-color: #DDA0DD; color: #ffffff !important; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+    /* กรอบปุ่มเลือกระดับสมอง */
+    div[data-testid="stRadio"] > div {{ flex-direction: row; align-items: center; justify-content: center; background-color: #f8f9fa; padding: 10px; border-radius: 15px; border: 1px solid #eee; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -79,8 +81,9 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.14 100% Scout</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.18 The Ultimate Masterpiece</h2>", unsafe_allow_html=True)
 
+# ปุ่ม 4 ปุ่มครบถ้วน
 st.markdown("""
     <div class="action-container">
         <a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 Maps</a>
@@ -91,8 +94,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 mode = st.radio("เลือกระดับสมอง:", ["⚡ Fast", "🧠 Ultra"], horizontal=True, index=1)
-# 🔴 คืนชีพ Llama 4 Scout ให้เป็นสมองหลักในโหมด Ultra 100% ตามคำสั่งบอสค่ะ!
-model_id = "llama-3.1-8b-instant" if "Fast" in mode else "meta-llama/llama-4-scout-17b-16e-instruct"
+model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
@@ -150,14 +152,22 @@ if user_input:
 
             answer = ""
             try:
-                # 🔴 ระบบตาและสมอง: ใช้ Llama 4 Scout ล้วนๆ ไม่มีผสม!
                 if uploaded_file:
                     v_content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
-                    stream_res = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct", 
-                        messages=history + [{"role": "user", "content": v_content}],
-                        stream=True
-                    )
+                    try:
+                        # 🛡️ ลองใช้ตา Scout ตามที่บอสต้องการก่อน
+                        stream_res = client.chat.completions.create(
+                            model="meta-llama/llama-4-scout-17b-16e-instruct", 
+                            messages=history + [{"role": "user", "content": v_content}],
+                            stream=True
+                        )
+                    except Exception:
+                        # 🛡️ ระบบเกราะป้องกันตาบอด (Vision Fallback) ถ้า Scout พัง เปลี่ยนแว่นทันที
+                        stream_res = client.chat.completions.create(
+                            model="llama-3.2-11b-vision-preview", 
+                            messages=history + [{"role": "user", "content": v_content}],
+                            stream=True
+                        )
                 else:
                     stream_res = client.chat.completions.create(
                         model=model_id, 
@@ -165,6 +175,7 @@ if user_input:
                         stream=True
                     )
                 
+                # ระบบพิมพ์แบบ Streaming
                 for chunk in stream_res:
                     if chunk.choices[0].delta.content:
                         answer += chunk.choices[0].delta.content
@@ -173,7 +184,7 @@ if user_input:
                 res_place.markdown(answer)
                 
             except Exception as e:
-                answer = f"ขออภัยค่ะบอส ระบบ Scout มีปัญหาแจ้งว่า: {str(e)}"
+                answer = f"ขออภัยค่ะบอส ระบบประมวลผลมีปัญหาแจ้งว่า: {str(e)}"
                 res_place.error(answer)
 
             save_memory(user_input, answer)
@@ -182,8 +193,10 @@ if user_input:
                 send_line(f"📢 ข้อความจากริน:\n{answer}")
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
+            
+            # 🗣️ โทนเสียงของริน (Voice Tweaks) ปรับเสียงให้นุ่มนวลเป็นธรรมชาติ
             if voice_on:
-                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural")
+                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
                 asyncio.run(comm.save("v.mp3"))
                 with open("v.mp3", "rb") as f:
                     b64 = base64.b64encode(f.read()).decode()
