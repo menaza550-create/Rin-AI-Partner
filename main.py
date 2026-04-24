@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.11 Perfect Restoration", layout="centered")
+st.set_page_config(page_title="Rin v40.13 The Masterpiece", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -44,7 +44,7 @@ def save_memory(u_input, r_output):
         index.upsert(vectors=[{"id": datetime.now().strftime("%Y%m%d%H%M%S"), "values": res.data[0].embedding, "metadata": {"text": u_input, "reply": r_output}}])
     except: pass
 
-# --- 2. UI STYLE (คืนชีพความสวยงาม) ---
+# --- 2. UI STYLE ---
 RIN_AVATAR = "rin_avatar.jpg"
 def get_avatar():
     return RIN_AVATAR if os.path.exists(RIN_AVATAR) else "👓"
@@ -62,7 +62,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SIDEBAR (ปุ่มตรวจสอบสมองกลับมาแล้ว!) ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
     if os.path.exists(RIN_AVATAR): st.image(RIN_AVATAR, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
@@ -79,8 +79,17 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.11 Perfect Restoration</h2>", unsafe_allow_html=True)
-st.markdown("""<div class="action-container"><a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 Maps</a><a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a><a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a></div>""", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.13 The Masterpiece</h2>", unsafe_allow_html=True)
+
+# ปุ่ม 4 ปุ่มครบถ้วน!
+st.markdown("""
+    <div class="action-container">
+        <a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 Maps</a>
+        <a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>
+        <a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>
+        <a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>
+    </div>
+    """, unsafe_allow_html=True)
 
 mode = st.radio("เลือกระดับสมอง:", ["⚡ Fast", "🧠 Ultra"], horizontal=True, index=1)
 model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
@@ -94,7 +103,7 @@ for m in st.session_state.messages:
 # --- 5. INPUT LAYER ---
 uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
-with col_mic: audio = audio_recorder(text="", icon_size="2x")
+with col_mic: audio = audio_recorder(text="", icon_size="2x") # ไมค์มาแล้วค่ะ!
 user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
 
 if audio:
@@ -106,7 +115,7 @@ if audio:
             user_input = ts.text
     except: st.error("ไมค์ขัดข้องค่ะ")
 
-# --- 6. VISION & PROCESSING (คืนชีพพิมพ์เรียลไทม์ + จำประวัติแชท) ---
+# --- 6. VISION & PROCESSING ---
 if user_input:
     user_msg = {"role": "user", "content": user_input}
     img_b64 = None
@@ -135,14 +144,13 @@ if user_input:
 
             sys_msg = f"คุณคือริน เลขาส่วนตัวบอสคิริลิ ความจำอดีต: {long_term} {search_ctx}"
             
-            # ดึงประวัติแชทเก่ามาด้วยเสมอ
             history = [{"role": "system", "content": sys_msg}]
             for m in st.session_state.messages[-4:-1]:
                 history.append({"role": m["role"], "content": m["content"]})
 
             answer = ""
             try:
-                # 🔴 ระบบตา (Vision): ใช้ Llama 4 Scout + ประวัติแชท + พิมพ์แบบสตรีม
+                # ระบบตา (Vision): ใช้ Llama 4 Scout ที่บอสต้องการ
                 if uploaded_file:
                     v_content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
                     stream_res = client.chat.completions.create(
@@ -157,7 +165,7 @@ if user_input:
                         stream=True
                     )
                 
-                # ระบบพิมพ์ตอบทีละคำ (Streaming) คืนชีพ!
+                # ระบบพิมพ์ตอบทีละคำ (Streaming)
                 for chunk in stream_res:
                     if chunk.choices[0].delta.content:
                         answer += chunk.choices[0].delta.content
@@ -171,10 +179,13 @@ if user_input:
 
             save_memory(user_input, answer)
             
+            # ระบบเชื่อมต่อ LINE
             if line_on and any(x in user_input for x in ["ไลน์", "เตือน", "จด"]):
                 send_line(f"📢 ข้อความจากริน:\n{answer}")
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
+            
+            # ระบบเสียงพูด
             if voice_on:
                 comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural")
                 asyncio.run(comm.save("v.mp3"))
