@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.20 Stable Hybrid", layout="centered")
+st.set_page_config(page_title="Rin v40.21 Scout Vision Reborn", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -80,7 +80,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.20 Stable Hybrid</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.21 Scout Vision Reborn</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
@@ -92,7 +92,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 mode = st.radio("เลือกระดับสมอง:", ["⚡ Fast", "🧠 Ultra"], horizontal=True, index=1)
-# รินล็อคสมองโหมด Ultra ให้เป็นตัวที่ฉลาดและใช้งานได้ชัวร์ที่สุดบน Groq นะคะ
 model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -120,10 +119,14 @@ if audio:
 if user_input:
     user_msg = {"role": "user", "content": user_input}
     img_b64 = None
+    mime_type = "image/jpeg" # ค่าเริ่มต้น
+    
     if uploaded_file:
         img_bytes = uploaded_file.getvalue()
         user_msg["image"] = img_bytes
         img_b64 = base64.b64encode(img_bytes).decode()
+        # 🟢 แก้ปัญหา invalid image data โดยการอ่าน Mime Type ตามจริง!
+        mime_type = uploaded_file.type 
     
     st.session_state.messages.append(user_msg)
     with st.chat_message("user"):
@@ -152,15 +155,18 @@ if user_input:
             answer = ""
             try:
                 if uploaded_file:
-                    v_content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
-                    # 👁️ สวมแว่น 3.2 Vision โดยอัตโนมัติเมื่อมีรูป (กัน Error 100%)
+                    # 👁️ ระบบตา (Vision): ใช้ Scout อย่างเดียว ไม่มีสำรอง!
+                    v_content = [
+                        {"type": "text", "text": user_input}, 
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}}
+                    ]
                     stream_res = client.chat.completions.create(
-                        model="llama-3.2-11b-vision-preview", 
+                        model="meta-llama/llama-4-scout-17b-16e-instruct", 
                         messages=history + [{"role": "user", "content": v_content}],
                         stream=True
                     )
                 else:
-                    # 🧠 ถอดแว่น ใช้สมองหลักคุยเมื่อไม่มีรูป
+                    # 🧠 ระบบสมอง (Text): ใช้ 70B ตามคำสั่ง
                     stream_res = client.chat.completions.create(
                         model=model_id, 
                         messages=history + [{"role": "user", "content": user_input}],
@@ -185,7 +191,6 @@ if user_input:
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
             
-            # 🗣️ โทนเสียงริน อ่อนโยนเป็นธรรมชาติ
             if voice_on:
                 comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
                 asyncio.run(comm.save("v.mp3"))
