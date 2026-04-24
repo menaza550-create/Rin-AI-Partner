@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.18 The Ultimate", layout="centered")
+st.set_page_config(page_title="Rin v40.19 Pure Scout Vision", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -81,7 +81,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.18 The Ultimate Masterpiece</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.19 Pure Scout Vision</h2>", unsafe_allow_html=True)
 
 # ปุ่ม 4 ปุ่มครบถ้วน
 st.markdown("""
@@ -154,20 +154,13 @@ if user_input:
             try:
                 if uploaded_file:
                     v_content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
-                    try:
-                        # 🛡️ ลองใช้ตา Scout ตามที่บอสต้องการก่อน
-                        stream_res = client.chat.completions.create(
-                            model="meta-llama/llama-4-scout-17b-16e-instruct", 
-                            messages=history + [{"role": "user", "content": v_content}],
-                            stream=True
-                        )
-                    except Exception:
-                        # 🛡️ ระบบเกราะป้องกันตาบอด (Vision Fallback) ถ้า Scout พัง เปลี่ยนแว่นทันที
-                        stream_res = client.chat.completions.create(
-                            model="llama-3.2-11b-vision-preview", 
-                            messages=history + [{"role": "user", "content": v_content}],
-                            stream=True
-                        )
+                    
+                    # 👁️ ระบบตา (Vision): ใช้ Scout ตามที่บอสสั่งแบบไม่มีข้อแม้ ไม่มีสำรอง!
+                    stream_res = client.chat.completions.create(
+                        model="meta-llama/llama-4-scout-17b-16e-instruct", 
+                        messages=history + [{"role": "user", "content": v_content}],
+                        stream=True
+                    )
                 else:
                     stream_res = client.chat.completions.create(
                         model=model_id, 
