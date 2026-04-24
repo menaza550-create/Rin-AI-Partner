@@ -9,9 +9,8 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.6 Ultimate", layout="centered")
+st.set_page_config(page_title="Rin v40.9 Scout Vision", layout="centered")
 
-# ดึงคีย์จาก Secrets
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
 PINECONE_KEY = st.secrets.get("PINECONE_API_KEY")
@@ -37,28 +36,18 @@ def get_memory(u_input):
         return "\n".join([f"อดีตบอสเคยบอก: {m['metadata']['text']}" for m in search['matches']])
     except: return ""
 
-def save_memory(u_input, r_output):
-    try:
-        pc = Pinecone(api_key=PINECONE_KEY)
-        index = pc.Index("diana-memory")
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        res = client.embeddings.create(model="nomic-embed-text-v1_5", input=u_input)
-        index.upsert(vectors=[{"id": datetime.now().strftime("%Y%m%d%H%M%S"), "values": res.data[0].embedding, "metadata": {"text": u_input, "reply": r_output}}])
-    except: pass
-
 # --- 3. UI STYLE ---
 RIN_AVATAR = "rin_avatar.jpg"
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #ffffff; }}
     * {{ color: #000000 !important; font-size: 19px; }}
-    .action-container {{ display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }}
-    .action-chip {{ padding: 8px 18px; border-radius: 25px; background: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; font-weight: bold; transition: 0.3s; }}
-    .action-chip:hover {{ background: #DDA0DD; color: white !important; }}
+    .action-container {{ display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }}
+    .action-chip {{ padding: 8px 18px; border-radius: 25px; background: #f0f2f6; border: 2px solid #DDA0DD; text-decoration: none; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (รูปใหญ่ตามใจบอส) ---
 with st.sidebar:
     if os.path.exists(RIN_AVATAR): st.image(RIN_AVATAR, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
@@ -67,19 +56,13 @@ with st.sidebar:
     voice_on = st.toggle("🔊 เสียงเลขา", value=True)
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
-# --- 5. MAIN UI & ACTIONS ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.6 Ultimate</h2>", unsafe_allow_html=True)
-st.markdown("""
-    <div class="action-container">
-        <a href="https://www.youtube.com" target="_blank" class="action-chip">📺 YouTube</a>
-        <a href="https://line.me/R/" target="_blank" class="action-chip">🟢 Line</a>
-        <a href="https://www.facebook.com" target="_blank" class="action-chip">👥 Facebook</a>
-        <a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 Maps</a>
-    </div>
-    """, unsafe_allow_html=True)
+# --- 5. MAIN UI ---
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.9 Scout Vision</h2>", unsafe_allow_html=True)
+st.markdown("""<div class="action-container"><a href="https://www.youtube.com" class="action-chip">📺 YT</a><a href="https://line.me/R/" class="action-chip">🟢 Line</a><a href="https://www.google.com/maps" class="action-chip">📍 Maps</a></div>""", unsafe_allow_html=True)
 
-mode = st.radio("ระดับสมอง:", ["⚡ Fast", "🧠 Ultra"], horizontal=True, index=1)
-model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
+# บอสต้องการใช้ Llama 4 Scout รินจัดให้ในโหมด Ultra ค่ะ
+mode = st.radio("เลือกระดับสมอง:", ["⚡ Fast (3.1)", "🧠 Scout Ultra (Llama 4)"], horizontal=True, index=1)
+model_id = "llama-3.1-8b-instant" if "Fast" in mode else "meta-llama/llama-4-scout-17b-16e-instruct"
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
@@ -88,10 +71,10 @@ for m in st.session_state.messages:
         st.markdown(m["content"])
 
 # --- 6. INPUT LAYER ---
-uploaded_file = st.file_uploader("👁️ แนบรูปให้รินดูได้ค่ะ", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("👁️ ส่งรูปให้รินดูทางนี้ค่ะ", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x")
-user_input = st.chat_input("สั่งริน หรือให้รินส่งไลน์หาบอสก็ได้นะคะ...")
+user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
 
 if audio:
     try:
@@ -100,9 +83,9 @@ if audio:
         with open("temp.wav", "rb") as f:
             ts = client.audio.transcriptions.create(file=("temp.wav", f.read()), model="whisper-large-v3")
             user_input = ts.text
-    except: st.error("ไมค์ขัดข้องค่ะ")
+    except: st.error("ไมค์มีปัญหานิดหน่อยค่ะ")
 
-# --- 7. PROCESSING (The Ultimate Brain) ---
+# --- 7. VISION PROCESSING (ระบบตา) ---
 if user_input:
     user_msg = {"role": "user", "content": user_input}
     img_b64 = None
@@ -118,33 +101,42 @@ if user_input:
 
     with st.chat_message("assistant", avatar=RIN_AVATAR):
         res_place = st.empty()
-        with st.spinner("รินกำลังวิเคราะห์ข้อมูล..."):
+        with st.spinner("รินกำลังใช้ระบบ Scout วิเคราะห์..."):
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             long_term = get_memory(user_input)
-            
             search_ctx = ""
             if search_mode:
                 try:
                     tavily = TavilyClient(api_key=TAVILY_KEY)
                     s_res = tavily.search(query=user_input, max_results=2)
-                    search_ctx = "\n[สดจากเน็ต]: " + " ".join([r['content'] for r in s_res['results']])
+                    search_ctx = f"\n[ข้อมูลเสริม]: {s_res['results'][0]['content']}"
                 except: pass
 
-            sys_msg = f"คุณคือริน เลขาส่วนตัวบอสคิริลิ สุขุม นิ่ง ข้อมูลอดีต: {long_term} {search_ctx}"
+            sys_msg = f"คุณคือริน เลขาส่วนตัวบอสคิริลิ ความจำอดีต: {long_term} {search_ctx}"
             
-            # การส่ง Message แบบรองรับรูปภาพ
-            if uploaded_file:
-                content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
-                res = client.chat.completions.create(model="llama-3.2-11b-vision-preview", messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": content}])
-            else:
-                res = client.chat.completions.create(model=model_id, messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-5:])
-            
-            answer = res.choices[0].message.content
+            # 🔴 ส่วนสำคัญ: ระบบตา Llama 4 Scout (พร้อมระบบสำรอง)
+            try:
+                if uploaded_file:
+                    content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
+                    # รินพยายามใช้ Llama 4 Scout ตามคำสั่งบอสค่ะ
+                    res = client.chat.completions.create(model=model_id, messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": content}])
+                else:
+                    res = client.chat.completions.create(model=model_id, messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-5:])
+                answer = res.choices[0].message.content
+            except Exception:
+                # 🔄 Fallback: ถ้า Llama 4 ยังใช้ไม่ได้ ให้สลับไปใช้ตัวที่ดูรูปได้ใน Groq (Llama 3.2 Vision)
+                try:
+                    if uploaded_file:
+                        res = client.chat.completions.create(model="llama-3.2-11b-vision-preview", messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": content}])
+                    else:
+                        res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-5:])
+                    answer = res.choices[0].message.content
+                except:
+                    answer = "ขออภัยค่ะบอส ระบบตา (Vision) ของโมเดลตัวนี้ใน Groq ยังไม่เสถียร รินขอตอบเป็นข้อความปกตินะคะ"
+
             res_place.markdown(answer)
-            
-            save_memory(user_input, answer)
             if line_on and any(x in user_input for x in ["ไลน์", "เตือน", "จด"]):
-                if send_line(f"🔔 รินส่งเข้าไลน์ให้แล้วค่ะบอส:\n{answer}"): st.toast("ส่ง LINE สำเร็จ! 🟢")
+                send_line(f"📢 ข้อความจากริน:\n{answer}")
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
             if voice_on:
