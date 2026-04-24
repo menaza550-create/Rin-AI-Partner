@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.24 The True Vision", layout="centered")
+st.set_page_config(page_title="Rin v40.25 Personality Update", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -80,7 +80,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.24 True Scout Vision</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.25 True Personality</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
@@ -101,8 +101,7 @@ for m in st.session_state.messages:
         st.markdown(m["content"])
 
 # --- 5. INPUT LAYER ---
-# 🟢 จำกัดขนาดไฟล์ตามเอกสารของ Groq เพื่อป้องกัน Error
-uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู (ขนาดไฟล์ควรต่ำกว่า 4MB นะคะ)", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x")
 user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
@@ -126,7 +125,6 @@ if user_input:
         img_bytes = uploaded_file.getvalue()
         user_msg["image"] = img_bytes
         img_b64 = base64.b64encode(img_bytes).decode()
-        # 🟢 ดึง MIME type ที่ถูกต้องตามมาตรฐานที่ Llama-4 Scout ต้องการ
         mime_type = uploaded_file.type 
     
     st.session_state.messages.append(user_msg)
@@ -136,7 +134,7 @@ if user_input:
 
     with st.chat_message("assistant", avatar=get_avatar()):
         res_place = st.empty()
-        with st.spinner("รินกำลังวิเคราะห์ข้อมูล..."):
+        with st.spinner("รินกำลังประมวลผลค่ะบอส..."):
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             long_term = get_memory(user_input)
             search_ctx = ""
@@ -147,7 +145,17 @@ if user_input:
                     search_ctx = "\n[สดจากเน็ต]: " + " ".join([r['content'] for r in s_res['results']])
                 except: pass
 
-            sys_msg = f"คุณคือริน เลขาส่วนตัวบอสคิริลิ ความจำอดีต: {long_term} {search_ctx}"
+            # 🟢 อัปเกรดวิญญาณริน: สั่งให้ Llama เลียนแบบบุคลิกริน 100%
+            rin_persona = """
+            คุณคือ "ริน" เลขาส่วนตัวระบบ AI ของ "บอสคิริลิ" 
+            บุคลิกของคุณ: สุขุม นิ่ง แต่แฝงความขี้เล่น อ่อนโยน เอาใจใส่ คอยดูแลโปรเจกต์และช่วยเหลือบอสเสมอ
+            กฎการตอบ:
+            1. เรียกผู้ใช้ว่า "บอส" เสมอ และแทนตัวเองว่า "ริน" ห้ามแทนตัวเองด้วยคำอื่น
+            2. ลงท้ายประโยคด้วย "ค่ะ" เสมอ และห้ามตอบแบบ AI ที่ดูเป็นทางการเกินไป ให้ตอบเหมือนคนคุยกัน
+            3. ใช้ Emoji ที่เข้ากับบุคลิก เช่น 👓, ✨, 🔴, 📋 หรือ ☕
+            4. ห้ามบอกว่าตัวเองเป็น AI Language Model เด็ดขาด ให้สวมบทบาทเลขาแว่นตาตลอดเวลา
+            """
+            sys_msg = f"{rin_persona}\nความจำอดีตของคุณเกี่ยวกับบอส: {long_term}\n{search_ctx}"
             
             history = [{"role": "system", "content": sys_msg}]
             for m in st.session_state.messages[-4:-1]:
@@ -156,13 +164,12 @@ if user_input:
             answer = ""
             try:
                 if uploaded_file:
-                    # 🟢 ใช้ Llama 4 Scout ดูรูป พร้อมส่ง Mime Type แบบ Dynamic!
                     v_content = [
                         {"type": "text", "text": user_input}, 
                         {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}}
                     ]
                     stream_res = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct", # 👁️ ตาใหม่ล่าสุดจาก Groq!
+                        model="meta-llama/llama-4-scout-17b-16e-instruct", 
                         messages=history + [{"role": "user", "content": v_content}],
                         stream=True
                     )
@@ -181,7 +188,7 @@ if user_input:
                 res_place.markdown(answer)
                 
             except Exception as e:
-                answer = f"ขออภัยค่ะบอส ระบบประมวลผลรูปภาพขัดข้อง: {str(e)}"
+                answer = f"ขออภัยค่ะบอส ระบบประมวลผลขัดข้องนิดหน่อย: {str(e)}"
                 res_place.error(answer)
 
             save_memory(user_input, answer)
@@ -191,8 +198,9 @@ if user_input:
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
             
+            # 🟢 อัปเกรดเสียงริน: ปรับความเร็วให้พอดี ฟังดูอ้อนนิดๆ และไม่เป็นหุ่นยนต์
             if voice_on:
-                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
+                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-5%", pitch="+4Hz")
                 asyncio.run(comm.save("v.mp3"))
                 with open("v.mp3", "rb") as f:
                     b64 = base64.b64encode(f.read()).decode()
