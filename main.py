@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.23 Stable Vision", layout="centered")
+st.set_page_config(page_title="Rin v40.24 The True Vision", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -80,7 +80,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.23 Final Stable Vision</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.24 True Scout Vision</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
@@ -91,7 +91,6 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-# 🧠 สมองหลักสำหรับแชทข้อความ
 mode = st.radio("เลือกระดับสมอง (สำหรับข้อความ):", ["⚡ Fast (8B)", "🧠 Ultra (70B)"], horizontal=True, index=1)
 model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
@@ -102,7 +101,8 @@ for m in st.session_state.messages:
         st.markdown(m["content"])
 
 # --- 5. INPUT LAYER ---
-uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู", type=["jpg", "jpeg", "png"])
+# 🟢 จำกัดขนาดไฟล์ตามเอกสารของ Groq เพื่อป้องกัน Error
+uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู (ขนาดไฟล์ควรต่ำกว่า 4MB นะคะ)", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
 with col_mic: audio = audio_recorder(text="", icon_size="2x")
 user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
@@ -126,6 +126,7 @@ if user_input:
         img_bytes = uploaded_file.getvalue()
         user_msg["image"] = img_bytes
         img_b64 = base64.b64encode(img_bytes).decode()
+        # 🟢 ดึง MIME type ที่ถูกต้องตามมาตรฐานที่ Llama-4 Scout ต้องการ
         mime_type = uploaded_file.type 
     
     st.session_state.messages.append(user_msg)
@@ -155,18 +156,17 @@ if user_input:
             answer = ""
             try:
                 if uploaded_file:
-                    # 🟢 ใช้ Llama 3.2 90B Vision ตัวท็อปสุดที่ Groq อนุญาตให้ดูรูปได้!
+                    # 🟢 ใช้ Llama 4 Scout ดูรูป พร้อมส่ง Mime Type แบบ Dynamic!
                     v_content = [
                         {"type": "text", "text": user_input}, 
                         {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}}
                     ]
                     stream_res = client.chat.completions.create(
-                        model="llama-3.2-90b-vision-preview", 
+                        model="meta-llama/llama-4-scout-17b-16e-instruct", # 👁️ ตาใหม่ล่าสุดจาก Groq!
                         messages=history + [{"role": "user", "content": v_content}],
                         stream=True
                     )
                 else:
-                    # 🧠 ถ้าไม่มีรูป ก็ใช้สมองหลัก (Llama 3.3 70B) คุยได้เต็มที่
                     stream_res = client.chat.completions.create(
                         model=model_id, 
                         messages=history + [{"role": "user", "content": user_input}],
@@ -181,7 +181,7 @@ if user_input:
                 res_place.markdown(answer)
                 
             except Exception as e:
-                answer = f"ขออภัยค่ะบอส ระบบประมวลผลมีปัญหาแจ้งว่า: {str(e)}"
+                answer = f"ขออภัยค่ะบอส ระบบประมวลผลรูปภาพขัดข้อง: {str(e)}"
                 res_place.error(answer)
 
             save_memory(user_input, answer)
