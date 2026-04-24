@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.21 Scout Vision Reborn", layout="centered")
+st.set_page_config(page_title="Rin v40.22 90B Vision Upgrade", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -68,6 +68,11 @@ with st.sidebar:
     if os.path.exists(RIN_AVATAR): st.image(RIN_AVATAR, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
     
+    # 🟢 เพิ่มปุ่มเลือกโมเดลตา ให้บอสเทสได้ตามใจชอบเลยค่ะ!
+    st.markdown("**👁️ ระบบตา (ดูรูปภาพ):**")
+    vision_model = st.radio("เลือกตา:", ["llama-3.2-90b-vision-preview", "meta-llama/llama-4-scout-17b-16e-instruct"], label_visibility="collapsed")
+    st.write("---")
+    
     if st.button("🔍 ตรวจสอบสมองที่ใช้ได้"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -80,7 +85,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.21 Scout Vision Reborn</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.22 90B Vision Upgrade</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
@@ -91,8 +96,8 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-mode = st.radio("เลือกระดับสมอง:", ["⚡ Fast", "🧠 Ultra"], horizontal=True, index=1)
-model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
+mode = st.radio("🧠 ระบบสมอง (คุยข้อความ):", ["⚡ Fast (8B)", "🧠 Ultra (70B)"], horizontal=True)
+text_model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
@@ -100,100 +105,4 @@ for m in st.session_state.messages:
         if "image" in m: st.image(m["image"], width=300)
         st.markdown(m["content"])
 
-# --- 5. INPUT LAYER ---
-uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู", type=["jpg", "jpeg", "png"])
-col_mic, col_input = st.columns([1, 6])
-with col_mic: audio = audio_recorder(text="", icon_size="2x")
-user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
-
-if audio:
-    try:
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        with open("temp.wav", "wb") as f: f.write(audio)
-        with open("temp.wav", "rb") as f:
-            ts = client.audio.transcriptions.create(file=("temp.wav", f.read()), model="whisper-large-v3")
-            user_input = ts.text
-    except: st.error("ไมค์ขัดข้องค่ะ")
-
-# --- 6. VISION & PROCESSING ---
-if user_input:
-    user_msg = {"role": "user", "content": user_input}
-    img_b64 = None
-    mime_type = "image/jpeg" # ค่าเริ่มต้น
-    
-    if uploaded_file:
-        img_bytes = uploaded_file.getvalue()
-        user_msg["image"] = img_bytes
-        img_b64 = base64.b64encode(img_bytes).decode()
-        # 🟢 แก้ปัญหา invalid image data โดยการอ่าน Mime Type ตามจริง!
-        mime_type = uploaded_file.type 
-    
-    st.session_state.messages.append(user_msg)
-    with st.chat_message("user"):
-        if uploaded_file: st.image(uploaded_file, width=300)
-        st.markdown(user_input)
-
-    with st.chat_message("assistant", avatar=get_avatar()):
-        res_place = st.empty()
-        with st.spinner("รินกำลังวิเคราะห์..."):
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            long_term = get_memory(user_input)
-            search_ctx = ""
-            if search_mode:
-                try:
-                    tavily = TavilyClient(api_key=TAVILY_KEY)
-                    s_res = tavily.search(query=user_input, max_results=2)
-                    search_ctx = "\n[สดจากเน็ต]: " + " ".join([r['content'] for r in s_res['results']])
-                except: pass
-
-            sys_msg = f"คุณคือริน เลขาส่วนตัวบอสคิริลิ ความจำอดีต: {long_term} {search_ctx}"
-            
-            history = [{"role": "system", "content": sys_msg}]
-            for m in st.session_state.messages[-4:-1]:
-                history.append({"role": m["role"], "content": m["content"]})
-
-            answer = ""
-            try:
-                if uploaded_file:
-                    # 👁️ ระบบตา (Vision): ใช้ Scout อย่างเดียว ไม่มีสำรอง!
-                    v_content = [
-                        {"type": "text", "text": user_input}, 
-                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}}
-                    ]
-                    stream_res = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct", 
-                        messages=history + [{"role": "user", "content": v_content}],
-                        stream=True
-                    )
-                else:
-                    # 🧠 ระบบสมอง (Text): ใช้ 70B ตามคำสั่ง
-                    stream_res = client.chat.completions.create(
-                        model=model_id, 
-                        messages=history + [{"role": "user", "content": user_input}],
-                        stream=True
-                    )
-                
-                for chunk in stream_res:
-                    if chunk.choices[0].delta.content:
-                        answer += chunk.choices[0].delta.content
-                        res_place.markdown(answer + "▌")
-                        
-                res_place.markdown(answer)
-                
-            except Exception as e:
-                answer = f"ขออภัยค่ะบอส ระบบประมวลผลมีปัญหาแจ้งว่า: {str(e)}"
-                res_place.error(answer)
-
-            save_memory(user_input, answer)
-            
-            if line_on and any(x in user_input for x in ["ไลน์", "เตือน", "จด"]):
-                send_line(f"📢 ข้อความจากริน:\n{answer}")
-
-            st.session_state.messages.append({"role": "assistant", "content": answer})
-            
-            if voice_on:
-                comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural", rate="-10%", pitch="+2Hz")
-                asyncio.run(comm.save("v.mp3"))
-                with open("v.mp3", "rb") as f:
-                    b64 = base64.b64encode(f.read()).decode()
-                    st.markdown(f'<audio autoplay="true" style="display:none;"><source src="data:audio/mp3;base64,{b64}"></audio>', unsafe_allow_html=True)
+# --- 5.
