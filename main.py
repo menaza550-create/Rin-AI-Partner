@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.13 The Masterpiece", layout="centered")
+st.set_page_config(page_title="Rin v40.14 Pure Scout", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -79,9 +79,8 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.13 The Masterpiece</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.14 100% Scout</h2>", unsafe_allow_html=True)
 
-# ปุ่ม 4 ปุ่มครบถ้วน!
 st.markdown("""
     <div class="action-container">
         <a href="https://www.google.com/maps" target="_blank" class="action-chip">📍 Maps</a>
@@ -92,7 +91,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 mode = st.radio("เลือกระดับสมอง:", ["⚡ Fast", "🧠 Ultra"], horizontal=True, index=1)
-model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
+# 🔴 คืนชีพ Llama 4 Scout ให้เป็นสมองหลักในโหมด Ultra 100% ตามคำสั่งบอสค่ะ!
+model_id = "llama-3.1-8b-instant" if "Fast" in mode else "meta-llama/llama-4-scout-17b-16e-instruct"
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
@@ -103,7 +103,7 @@ for m in st.session_state.messages:
 # --- 5. INPUT LAYER ---
 uploaded_file = st.file_uploader("👁️ แนบรูปภาพให้รินดู", type=["jpg", "jpeg", "png"])
 col_mic, col_input = st.columns([1, 6])
-with col_mic: audio = audio_recorder(text="", icon_size="2x") # ไมค์มาแล้วค่ะ!
+with col_mic: audio = audio_recorder(text="", icon_size="2x")
 user_input = st.chat_input("สั่งรินได้เลยค่ะบอส...")
 
 if audio:
@@ -150,7 +150,7 @@ if user_input:
 
             answer = ""
             try:
-                # ระบบตา (Vision): ใช้ Llama 4 Scout ที่บอสต้องการ
+                # 🔴 ระบบตาและสมอง: ใช้ Llama 4 Scout ล้วนๆ ไม่มีผสม!
                 if uploaded_file:
                     v_content = [{"type": "text", "text": user_input}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}]
                     stream_res = client.chat.completions.create(
@@ -165,7 +165,6 @@ if user_input:
                         stream=True
                     )
                 
-                # ระบบพิมพ์ตอบทีละคำ (Streaming)
                 for chunk in stream_res:
                     if chunk.choices[0].delta.content:
                         answer += chunk.choices[0].delta.content
@@ -179,13 +178,10 @@ if user_input:
 
             save_memory(user_input, answer)
             
-            # ระบบเชื่อมต่อ LINE
             if line_on and any(x in user_input for x in ["ไลน์", "เตือน", "จด"]):
                 send_line(f"📢 ข้อความจากริน:\n{answer}")
 
             st.session_state.messages.append({"role": "assistant", "content": answer})
-            
-            # ระบบเสียงพูด
             if voice_on:
                 comm = edge_tts.Communicate(answer, "th-TH-PremwadeeNeural")
                 asyncio.run(comm.save("v.mp3"))
