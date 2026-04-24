@@ -9,7 +9,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. SETUP & CONNECTIONS ---
-st.set_page_config(page_title="Rin v40.22 90B Vision Upgrade", layout="centered")
+st.set_page_config(page_title="Rin v40.23 Stable Vision", layout="centered")
 
 LINE_ACCESS_TOKEN = st.secrets.get("LINE_ACCESS_TOKEN")
 MY_LINE_USER_ID = st.secrets.get("MY_LINE_USER_ID")
@@ -68,11 +68,6 @@ with st.sidebar:
     if os.path.exists(RIN_AVATAR): st.image(RIN_AVATAR, use_container_width=True)
     st.markdown("### 🏛️ Diana System Core")
     
-    # 🟢 เพิ่มปุ่มเลือกโมเดลตา ให้บอสเทสได้ตามใจชอบเลยค่ะ!
-    st.markdown("**👁️ ระบบตา (ดูรูปภาพ):**")
-    vision_model = st.radio("เลือกตา:", ["llama-3.2-90b-vision-preview", "meta-llama/llama-4-scout-17b-16e-instruct"], label_visibility="collapsed")
-    st.write("---")
-    
     if st.button("🔍 ตรวจสอบสมองที่ใช้ได้"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -85,7 +80,7 @@ with st.sidebar:
     if st.button("🗑️ ล้างหน้าจอ"): st.session_state.messages = []; st.rerun()
 
 # --- 4. MAIN UI ---
-st.markdown("<h2 style='text-align:center;'>👓 Rin v40.22 90B Vision Upgrade</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>👓 Rin v40.23 Final Stable Vision</h2>", unsafe_allow_html=True)
 
 st.markdown("""
     <div class="action-container">
@@ -96,8 +91,9 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
-mode = st.radio("🧠 ระบบสมอง (คุยข้อความ):", ["⚡ Fast (8B)", "🧠 Ultra (70B)"], horizontal=True)
-text_model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
+# 🧠 สมองหลักสำหรับแชทข้อความ
+mode = st.radio("เลือกระดับสมอง (สำหรับข้อความ):", ["⚡ Fast (8B)", "🧠 Ultra (70B)"], horizontal=True, index=1)
+model_id = "llama-3.1-8b-instant" if "Fast" in mode else "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
@@ -139,7 +135,7 @@ if user_input:
 
     with st.chat_message("assistant", avatar=get_avatar()):
         res_place = st.empty()
-        with st.spinner(f"รินกำลังวิเคราะห์รูปด้วยตา {vision_model}..." if uploaded_file else "รินกำลังคิด..."):
+        with st.spinner("รินกำลังวิเคราะห์ข้อมูล..."):
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             long_term = get_memory(user_input)
             search_ctx = ""
@@ -159,20 +155,20 @@ if user_input:
             answer = ""
             try:
                 if uploaded_file:
-                    # 👁️ สวมแว่นตาตัวที่บอสเลือกจาก Sidebar (เช่น 90b-vision)
+                    # 🟢 ใช้ Llama 3.2 90B Vision ตัวท็อปสุดที่ Groq อนุญาตให้ดูรูปได้!
                     v_content = [
                         {"type": "text", "text": user_input}, 
                         {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img_b64}"}}
                     ]
                     stream_res = client.chat.completions.create(
-                        model=vision_model, 
+                        model="llama-3.2-90b-vision-preview", 
                         messages=history + [{"role": "user", "content": v_content}],
                         stream=True
                     )
                 else:
-                    # 🧠 ใช้สมองตัวที่บอสเลือกคุยข้อความปกติ
+                    # 🧠 ถ้าไม่มีรูป ก็ใช้สมองหลัก (Llama 3.3 70B) คุยได้เต็มที่
                     stream_res = client.chat.completions.create(
-                        model=text_model_id, 
+                        model=model_id, 
                         messages=history + [{"role": "user", "content": user_input}],
                         stream=True
                     )
